@@ -1,10 +1,10 @@
 # Claude Code TriFlow
 
-[![Version](https://img.shields.io/badge/version-3.0-blue.svg)](https://github.com/yourusername/claude-triflow)
+[![Version](https://img.shields.io/badge/version-3.1-blue.svg)](https://github.com/yourusername/claude-triflow)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.com/claude-code)
 
-Intelligent `/plan` → `/run` → `/clear` workflow guidance for Claude Code agents. TriFlow keeps todo files lean, aligns execution with persistent state, and enforces quality via Codex review.
+Intelligent `/plan` → `/run` workflow guidance for Claude Code agents. TriFlow v3.1 keeps todo files lean, aligns execution with persistent state, enforces quality via Codex review, and maintains execution continuity through result logging.
 
 ## Why TriFlow?
 Claude Code falters when context grows past ~60% usage (≈120k tokens). Common failures:
@@ -12,10 +12,11 @@ Claude Code falters when context grows past ~60% usage (≈120k tokens). Common 
 - Latency spikes and decision errors when steps sprawl.
 - Manual rewrites that reintroduce bugs because state is stale.
 
-TriFlow counters this with three pillars:
-1. **Deep contextual planning** – `/plan` inspects the repo, classifies complexity (Trivial/Simple/Complex), and writes concise steps.
-2. **Objective-first execution** – Every `TODO.md` starts with goal + top findings so `/run` stays aligned.
-3. **Automated guardrails** – `/run` syncs state before acting, checks dependencies, and records Codex review (40-point scale) before advancing.
+TriFlow v3.1 counters this with four pillars:
+1. **Deep contextual planning** – `/plan` inspects the repo, classifies complexity, defines final goals, and writes concise steps.
+2. **Objective-first execution** – Every `TODO.md` starts with final goal + key findings so `/run` stays aligned.
+3. **Execution result logging** – `/run` records outcomes and key information for continuity between steps.
+4. **Flexible context management** – Optional `/clear` usage maintains useful context while preventing bloat.
 
 ## Core Concepts
 - **Adaptive Planning** – Token-aware plans that limit `TODO.md` to ~20 lines and highlight risks up front.
@@ -31,8 +32,8 @@ For a deeper design discussion, see `PLAN.md` and `PROJECT.md`.
 2. `/run`  
    - Reads the snapshot, refreshes the state store with the active `[▶️]`, reassesses complexity, then executes or expands as needed.
    - Logs Codex review results and updates `TODO.md`/state on completion.
-3. `/clear`  
-   - Resets chat context while leaving state files intact.
+3. `/clear` (Optional)
+   - Resets chat context when needed; no longer mandatory after each step.
 
 Helpful utilities:
 - `/progress` – Summarises the active step, dependencies, and recent history.

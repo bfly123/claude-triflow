@@ -8,12 +8,14 @@ Execute current task with intelligent complexity reassessment and adaptive expan
 ## Phase 0: Locate Work Item
 
 1. Read `./todo.md`, find [▶️] marker
-2. Immediately sync the state store with this active step (and active substep if one is marked) before making any decisions
-3. Capture:
+2. **检查最终目标和关键发现**，确保当前步骤与最终目标对齐
+3. Immediately sync the state store with this active step (and active substep if one is marked) before making any decisions
+4. Capture:
    - Tier (Trivial/Simple/Complex)
    - Title and estimated tokens
    - Notes, risks, dependencies
-4. Understand user's $ARGUMENTS if provided
+   - 与最终目标的关联性
+5. Understand user's $ARGUMENTS if provided
 
 ## Phase 1: Reassess Complexity
 
@@ -115,7 +117,7 @@ Creating 3 substeps for isolated validation
 - Document complex logic
 - Use meaningful file/function names
 
-## Phase 4: Codex Review
+## Phase 4: Codex Review & Result Logging
 
 Auto-trigger review with 40-point scale:
 
@@ -133,6 +135,7 @@ Completeness (0-10):   All requirements covered, outputs complete
 
 **If score ≥28**:
 - Mark task [x] in todo.md with score
+- **记录执行结果到 todo.md 的 📝 执行日志区域**
 - Proceed to Phase 5 (auto-transition)
 
 **If score <28**:
@@ -143,6 +146,22 @@ Completeness (0-10):   All requirements covered, outputs complete
   3. Proceed anyway (not recommended)
   4. Re-plan task
 
+### 执行结果记录格式
+
+在 todo.md 的 `📝 执行日志` 区域添加：
+
+```markdown
+### ✅ Step N [Tier] - [完成时间]
+**得分**: XX/40 ([状态])
+**完成内容**: [主要完成的功能/文件]
+**关键产出**:
+- 文件: [创建/修改的文件列表]
+- 功能: [实现的具体功能]
+**对下一步价值**: [为后续步骤提供的重要信息或基础]
+**遇到问题**: [如果有，记录问题和解决方案]
+**实际耗时**: [预估 vs 实际的对比]
+```
+
 ## Phase 5: Auto-Transition
 
 Update todo.md based on completion, then refresh the state store to reflect the new active position before giving guidance:
@@ -150,8 +169,9 @@ Update todo.md based on completion, then refresh the state store to reflect the 
 **Trivial/Simple Step Complete**:
 ```
 ✅ Step N [Tier] Complete (XX/40)
+📝 执行结果已记录到 todo.md
 ⚡ AUTO-TRANSITION: Now on Step N+1 [Tier]
-💡 Recommend: /clear then /run
+💡 建议: 可选择 /run 继续执行，或 /clear 清理后执行
 ```
 
 Sync the state store with the new active step before prompting for the next action.
@@ -159,9 +179,10 @@ Sync the state store with the new active step before prompting for the next acti
 **Substep Complete**:
 ```
 ✅ Substep N.M Complete (XX/40)
+📝 子步骤结果已记录
 📍 Progress: M/Total substeps done
 ⚡ AUTO-TRANSITION: Now on Substep N.M+1
-💡 Recommend: /clear then /run
+💡 建议: 可继续 /run，或需要时使用 /clear
 ```
 
 Persist the active substep index in the state store so re-entries resume in the right place.
@@ -170,8 +191,9 @@ Persist the active substep index in the state store so re-entries resume in the 
 ```
 🎉 Step N [Complex] Complete! All substeps done.
    Average score: XX/40
+📝 完整步骤结果已记录
 ⚡ AUTO-TRANSITION: Now on Step N+1
-💡 Recommend: /clear then /run
+💡 建议: 检查 todo.md 中的执行记录，然后 /run 或 /clear
 ```
 
 Immediately write the next active step into both todo.md and the state store to keep progression deterministic.
@@ -225,9 +247,10 @@ Immediately write the next active step into both todo.md and the state store to 
 
 **Context Management**:
 - ONE task per /run invocation
-- Auto-update todo.md after completion
-- Always suggest /clear after task
+- Auto-update todo.md with execution results after completion
+- **Flexible /clear usage**: Suggest but don't force, let user decide based on context usage
 - Maintain state through files, not memory
+- Record key information for next steps in execution log
 
 ---
 

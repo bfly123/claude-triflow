@@ -104,11 +104,19 @@ Step N [Tier] (~Xk tokens): [Title]
 
 [Repeat for each step...]
 
+Step N+1 [Trivial] (~1k tokens): 最终审查：验证目标达成情况
+├─ Role: 确保所有功能都符合最终目标要求
+├─ Deliverable: 完整的项目验收报告
+├─ Validation: 对照最终目标逐一验证
+├─ Dependencies: 所有前置步骤完成
+└─ Notes: 这是必须执行的最后步骤
+
 ## 📈 Summary
-- Total Steps: N (Trivial: X, Simple: Y, Complex: Z)
+- Total Steps: N+1 (Trivial: X, Simple: Y, Complex: Z, Final: 1)
 - Est. Tokens: XXk / 120k (YY% of budget)
 - Complexity Tier: [Overall tier]
 - Risk Level: [Low/Medium/High with explanation]
+- 最终目标: [明确的项目完成目标]
 ```
 
 **Validation**:
@@ -119,32 +127,35 @@ Step N [Tier] (~Xk tokens): [Title]
 
 ## Phase 3: Persist to todo.md
 
-Create `./todo.md` with the **overall objective and analysis summary at the very top** so every execution run can realign before acting:
+Create `./todo.md` with the **最终目标 prominently displayed at the very top** so every execution run can realign before acting:
 
 ```markdown
 # TODO - [Task Name]
 
-## 🎯 Objective Snapshot
-- Goal: [Single sentence restatement of the overall task]
-- Key Findings: [Top 2-3 insights from analysis that must stay visible]
+## 🎯 最终目标
+[项目的最终完成目标和验收标准]
 
-## 🔍 Analysis
-- Complexity: [Tier] (~XXk tokens)
-- Reasoning: [Brief explanation]
-- Risks: [Key risks or "None noted"]
+## 🔍 关键发现
+[Top 2-3 insights from analysis that must stay visible for subsequent steps]
 
-## 📋 Steps
+## 📊 执行概览
+- **复杂度**: [Tier] (~XXk tokens)
+- **总步骤**: N 步 (Trivial: X, Simple: Y, Complex: Z)
+- **预估 Token**: XXk / 120k (YY%)
+- **风险级别**: [Low/Medium/High]
+- **创建时间**: [date]
+
+## 📋 执行步骤
 - [▶️] Step 1 [Tier]: [Title] (~Xk)
 - [ ] Step 2 [Tier]: [Title] (~Xk)
 - [ ] Step 3 [Tier]: [Title] (~Xk)
+- [ ] 最终审查: 验证目标达成情况
 
-## 📊 Summary
-- Total: N steps (Trivial: X, Simple: Y, Complex: Z)
-- Est. tokens: XXk / 120k (YY%)
-- Created: [date]
+## 📝 执行日志
+[此区域用于记录每步执行结果和关键信息]
 
 ---
-💡 Next: /run (adaptive execution)
+💡 **下一步**: /run (开始执行第一步骤)
 ```
 
 **For Trivial tasks**, add note:
@@ -155,13 +166,14 @@ Create `./todo.md` with the **overall objective and analysis summary at the very
 ## Completion Message
 
 ```
-✅ Plan created with [Tier] complexity (N steps)
+✅ Plan created with [Tier] complexity (N+1 steps including final review)
 📊 Estimated: XXk / 120k tokens (YY% of budget)
+🎯 最终目标: [项目最终目标]
 🔍 Context analyzed: [key findings]
 ⚠️ Risks: [any flags or "None noted"]
-📝 Saved to todo.md
+📝 Saved to todo.md with final review step
 
-💡 Next: /run (adaptive execution)
+💡 Next: /run (开始执行第一步骤)
 ```
 
 ---
