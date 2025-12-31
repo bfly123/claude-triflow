@@ -59,13 +59,21 @@ Manage your project's automation permissions via the `cca` command line tool.
 | `cca update` | Update `cca` core and global skills definitions. |
 | `cca version` | Display version information. |
 
-### Slash Skills (In-Session)
-Once inside a Claude session, use these skills to drive the workflow:
+### Slash Commands (In-Session)
+Once inside a Claude session, use the `/auto` command to drive the workflow:
 
-- **`/tp [task description]`** - Create a new task plan.
-  - Example: `/tp Implement user login`
-- **`/tr`** - Start automatic execution.
-  - No arguments needed.
+| Command | Description |
+| :--- | :--- |
+| `/auto <requirement>` | Create a new task plan (invokes tp skill) |
+| `/auto run` or `/auto r` | Execute current step (invokes tr skill) |
+
+Examples:
+```bash
+/auto implement user login    # Start planning
+/auto run                     # Execute current step
+```
+
+> **Note**: `/tp` and `/tr` are internal skills invoked by Claude. Users should use `/auto` as the entry point.
 
 ## 📄 License
 
