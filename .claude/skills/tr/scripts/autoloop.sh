@@ -14,7 +14,7 @@ ensure_deps() {
 }
 
 autoloop_py() {
-  echo "$WORKDIR/.claude/skills/tr/scripts/autoloop.py"
+  echo "$HOME/.claude/skills/tr/scripts/autoloop.py"
 }
 
 is_running() {

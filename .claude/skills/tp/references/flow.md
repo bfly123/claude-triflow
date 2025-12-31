@@ -88,7 +88,7 @@ Call:
         "finalDone": ["criterion 1", "criterion 2"]
       }
     },
-    { "op": "run", "cmd": "bash .claude/skills/tr/scripts/autoloop.sh start", "cwd": "." }
+    { "op": "run", "cmd": "bash ~/.claude/skills/tr/scripts/autoloop.sh start", "cwd": "." }
   ],
   "report": { "changedFiles": true, "diffSummary": true, "commandOutputs": "never" }
 }

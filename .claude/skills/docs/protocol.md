@@ -154,9 +154,9 @@ These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Clau
   - goal: reliably trigger the next `/tr` without requiring Codex to "understand" a domain op
   - recommended op:
     ```json
-    { "op": "run", "cmd": "python3 .claude/skills/tr/scripts/autoloop.py --repo-root . --once", "cwd": ".", "timeoutMs": 600000 }
+    { "op": "run", "cmd": "python3 ~/.claude/skills/tr/scripts/autoloop.py --repo-root . --once", "cwd": ".", "timeoutMs": 600000 }
     ```
-  - behavior (implemented by `.claude/skills/tr/scripts/autoloop.py`):
+  - behavior (implemented by `~/.claude/skills/tr/scripts/autoloop.py`):
     1) loads `state.json` and checks whether there are remaining steps
     2) reads the latest Claude session JSONL under `~/.claude/projects/<project-dir>/*.jsonl` (excluding `agent-*.jsonl`)
     3) finds the latest record with `message.usage` and estimates current context window using:

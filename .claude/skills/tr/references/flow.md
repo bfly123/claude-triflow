@@ -9,7 +9,7 @@ Execute current step while Claude stays in plan mode and Codex performs all file
 
 ## Execution Flow
 
-**Auto-loop daemon**: started by `/tp` (`bash .claude/skills/tr/scripts/autoloop.sh start`). `/tr` should assume it is running and only ensure the finalize request doesn't stop it.
+**Auto-loop daemon**: started by `/tp` (`bash ~/.claude/skills/tr/scripts/autoloop.sh start`). `/tr` should assume it is running and only ensure the finalize request doesn't stop it.
 
 ### 1. Sync Current State (Codex)
 
