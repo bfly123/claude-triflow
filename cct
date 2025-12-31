@@ -2,7 +2,8 @@
 # cct - Claude Code TriFlow CLI
 # Manage TriFlow skill installations across projects
 
-set -e
+set -euo pipefail
+shopt -s nullglob
 
 VERSION="1.0.0"
 CCT_HOME="${CCT_HOME:-$HOME/.cct}"
@@ -55,27 +56,140 @@ Config:
 EOF
 }
 
-log_info() { echo -e "${GREEN}[+]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-log_error() { echo -e "${RED}[-]${NC} $1"; }
-log_blue() { echo -e "${BLUE}[*]${NC} $1"; }
+log_info() { printf "${GREEN}[+]${NC} %s\n" "$1"; }
+log_warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
+log_error() { printf "${RED}[-]${NC} %s\n" "$1"; }
+log_blue() { printf "${BLUE}[*]${NC} %s\n" "$1"; }
+
+TRIFLOW_SKILLS=(tr tp dual-design file-op ask-codex review mode-switch docs)
+TRIFLOW_COMMANDS=(tr.md tp.md dual-design.md file-op.md ask-codex.md review.md mode-switch.md)
+
+sed_inplace() {
+    # Portable in-place edit for GNU sed and BSD/macOS sed.
+    # Usage: sed_inplace 's/old/new/' file
+    local script="$1"
+    local file="$2"
+    sed -i.bak "$script" "$file"
+    rm -f "${file}.bak"
+}
+
+toml_escape_basic() {
+    # Escape backslashes and double quotes for TOML basic strings.
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf "%s" "$s"
+}
+
+update_codex_config() {
+    local target_path="$1"
+    local codex_cfg="$HOME/.codex/config.toml"
+
+    if [[ ! -f "$codex_cfg" ]]; then
+        log_warn "Codex config not found: $codex_cfg (skipping auto-approval setup)"
+        return 0
+    fi
+    if [[ ! -w "$codex_cfg" ]]; then
+        log_warn "Codex config not writable: $codex_cfg (skipping auto-approval setup)"
+        return 0
+    fi
+
+    local escaped_path
+    escaped_path="$(toml_escape_basic "$target_path")"
+    local header="[projects.\"$escaped_path\"]"
+
+    local tmp
+    tmp="$(mktemp "${CCT_HOME}/codex-config.tmp.XXXXXX")"
+
+    if grep -Fq -- "$header" "$codex_cfg"; then
+        # Ensure approval_policy = "never" exists within this project section.
+        awk -v header="$header" '
+            function print_approval() { print "approval_policy = \"never\"" }
+            BEGIN { in_section = 0; found = 0 }
+            {
+                line = $0
+                if (line ~ /^\[[^]]+\]$/) {
+                    if (in_section == 1) {
+                        if (found == 0) print_approval()
+                        in_section = 0
+                    }
+                    if (line == header) {
+                        in_section = 1
+                        found = 0
+                        print line
+                        next
+                    }
+                }
+                if (in_section == 1 && line ~ /^[[:space:]]*approval_policy[[:space:]]*=/) {
+                    print_approval()
+                    found = 1
+                    next
+                }
+                print line
+            }
+            END {
+                if (in_section == 1 && found == 0) print_approval()
+            }
+        ' "$codex_cfg" > "$tmp" || { rm -f "$tmp"; log_warn "Failed to update Codex config (parse error): $codex_cfg"; return 0; }
+        if ( cat "$tmp" > "$codex_cfg" ) 2>/dev/null; then
+            rm -f "$tmp"
+            log_info "Codex auto-approval ensured (approval_policy=never): $target_path"
+        else
+            rm -f "$tmp"
+            log_warn "Failed to update Codex config (write denied): $codex_cfg"
+        fi
+        return 0
+    fi
+
+    # Append new project config block.
+    cat "$codex_cfg" > "$tmp" || { rm -f "$tmp"; log_warn "Failed to read Codex config: $codex_cfg"; return 0; }
+    {
+        echo ""
+        echo "$header"
+        echo "trust_level = \"trusted\""
+        echo "approval_policy = \"never\""
+        echo "sandbox_mode = \"workspace-write\""
+    } >> "$tmp"
+    if ( cat "$tmp" > "$codex_cfg" ) 2>/dev/null; then
+        rm -f "$tmp"
+        log_info "Codex auto-approval configured for project: $target_path"
+    else
+        rm -f "$tmp"
+        log_warn "Failed to update Codex config (write denied): $codex_cfg"
+    fi
+}
+
+canonical_path() {
+    # Prefer realpath; fall back to Python for portability.
+    local p="$1"
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$p"
+        return 0
+    fi
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$p"
+}
 
 # Record installation path
 record_installation() {
     local path="$1"
     local type="$2"  # project or system
+    local install_date="${3:-$(date +%Y-%m-%d)}"
     # Remove existing entry if any
-    grep -v "^$path|" "$INSTALLATIONS_FILE" > "$INSTALLATIONS_FILE.tmp" 2>/dev/null || true
-    mv "$INSTALLATIONS_FILE.tmp" "$INSTALLATIONS_FILE"
+    local tmp
+    tmp="$(mktemp "${INSTALLATIONS_FILE}.tmp.XXXXXX")"
+    grep -Fv -- "$path|" "$INSTALLATIONS_FILE" > "$tmp" 2>/dev/null || true
+    mv "$tmp" "$INSTALLATIONS_FILE"
     # Add new entry with trailing newline
-    printf "%s|%s|%s\n" "$path" "$type" "$(date +%Y-%m-%d)" >> "$INSTALLATIONS_FILE"
+    printf "%s|%s|%s\n" "$path" "$type" "$install_date" >> "$INSTALLATIONS_FILE"
 }
 
 # Remove installation record
 remove_installation() {
     local path="$1"
-    grep -v "^$path|" "$INSTALLATIONS_FILE" > "$INSTALLATIONS_FILE.tmp" 2>/dev/null || true
-    mv "$INSTALLATIONS_FILE.tmp" "$INSTALLATIONS_FILE"
+    local tmp
+    tmp="$(mktemp "${INSTALLATIONS_FILE}.tmp.XXXXXX")"
+    grep -Fv -- "$path|" "$INSTALLATIONS_FILE" > "$tmp" 2>/dev/null || true
+    mv "$tmp" "$INSTALLATIONS_FILE"
 }
 
 # Check source files exist
@@ -89,24 +203,60 @@ check_source() {
         log_error "Commands not found in $CCT_SOURCE/.claude/commands/"
         exit 1
     fi
+
+    for skill in "${TRIFLOW_SKILLS[@]}"; do
+        if [[ ! -d "$CCT_SOURCE/.claude/skills/$skill" ]]; then
+            log_error "Missing TriFlow skill in source: $CCT_SOURCE/.claude/skills/$skill"
+            exit 1
+        fi
+    done
 }
 
 # Install to a directory
 do_install() {
     local target="$1"
     local type="$2"
+    local install_date="${3:-}"
 
     check_source
 
-    # Copy skills directory
+    # Prevent self-copy when installing into the source repository itself.
+    if [[ "$(canonical_path "$target")" == "$(canonical_path "$CCT_SOURCE")" ]]; then
+        log_info "Skipping source directory: $target (already up to date)"
+        if [[ "$type" == "project" ]]; then
+            update_codex_config "$target" || true
+        fi
+        record_installation "$target" "$type" "${install_date:-}"
+        return 0
+    fi
+
+    # Copy TriFlow skills directory (only TriFlow-specific subdirs)
     local skills_dir="$target/.claude/skills"
     mkdir -p "$skills_dir"
-    cp -r "$CCT_SOURCE/.claude/skills/"* "$skills_dir/"
+    for skill in "${TRIFLOW_SKILLS[@]}"; do
+        local src="$CCT_SOURCE/.claude/skills/$skill"
+        local dst="$skills_dir/$skill"
+        rm -rf "$dst" 2>/dev/null || true
+        mkdir -p "$dst"
+        cp -a "$src/." "$dst/"
+    done
 
-    # Copy commands directory (slash command redirects)
+    # Copy TriFlow slash command redirects (only TriFlow-specific .md)
     local cmd_dir="$target/.claude/commands"
     mkdir -p "$cmd_dir"
-    cp "$CCT_SOURCE/.claude/commands/"*.md "$cmd_dir/"
+    for cmd in "${TRIFLOW_COMMANDS[@]}"; do
+        local src="$CCT_SOURCE/.claude/commands/$cmd"
+        if [[ -f "$src" ]]; then
+            cp -a "$src" "$cmd_dir/"
+        else
+            log_warn "Missing command stub in source: $src"
+        fi
+    done
+
+    # Configure Codex auto-approval for this project installation (TriFlow expects full automation).
+    if [[ "$type" == "project" ]]; then
+        update_codex_config "$target" || true
+    fi
 
     # Add CLAUDE.md content for project installations
     if [[ "$type" == "project" ]]; then
@@ -145,7 +295,7 @@ TRIFLOW_EOF
         fi
     fi
 
-    record_installation "$target" "$type"
+    record_installation "$target" "$type" "${install_date:-}"
 
     log_info "Installed to: $target/.claude/"
     echo "  - skills/ (tr, tp, dual-design, file-op, mode-switch, review, ask-codex, docs)"
@@ -158,21 +308,47 @@ do_remove() {
     local skills_dir="$target/.claude/skills"
     local cmd_dir="$target/.claude/commands"
 
-    if [[ -d "$skills_dir" ]] || [[ -d "$cmd_dir" ]]; then
-        # Remove skills directory
-        rm -rf "$skills_dir" 2>/dev/null || true
-        # Remove commands directory
-        rm -rf "$cmd_dir" 2>/dev/null || true
-        # Remove empty .claude directory
-        rmdir "$target/.claude" 2>/dev/null || true
+    local removed_any=false
+
+    # Remove only TriFlow-specific skills
+    if [[ -d "$skills_dir" ]]; then
+        for skill in "${TRIFLOW_SKILLS[@]}"; do
+            if [[ -d "$skills_dir/$skill" ]]; then
+                rm -rf "$skills_dir/$skill" 2>/dev/null || true
+                removed_any=true
+            fi
+        done
+        rmdir "$skills_dir" 2>/dev/null || true
+    fi
+
+    # Remove only TriFlow-specific command stubs
+    if [[ -d "$cmd_dir" ]]; then
+        for cmd in "${TRIFLOW_COMMANDS[@]}"; do
+            if [[ -f "$cmd_dir/$cmd" ]]; then
+                rm -f "$cmd_dir/$cmd" 2>/dev/null || true
+                removed_any=true
+            fi
+        done
+        # Backward-compat cleanup: older installs may have kept docs under commands/
+        if [[ -d "$cmd_dir/docs" ]]; then
+            rm -rf "$cmd_dir/docs" 2>/dev/null || true
+            removed_any=true
+        fi
+        rmdir "$cmd_dir" 2>/dev/null || true
+    fi
+
+    # Remove empty .claude directory if possible
+    rmdir "$target/.claude" 2>/dev/null || true
+
+    if [[ "$removed_any" == true ]]; then
         remove_installation "$target"
-        log_info "Removed from: $target"
+        log_info "Removed TriFlow from: $target"
 
         # Clean TriFlow section from CLAUDE.md
         local claude_md="$target/CLAUDE.md"
         if [[ -f "$claude_md" ]] && grep -q "<!-- TRIFLOW -->" "$claude_md"; then
             # Remove TriFlow section
-            sed -i '/<!-- TRIFLOW -->/,/<!-- \/TRIFLOW -->/d' "$claude_md"
+            sed_inplace '/<!-- TRIFLOW -->/,/<!-- \/TRIFLOW -->/d' "$claude_md"
             # Remove empty CLAUDE.md
             if [[ ! -s "$claude_md" ]] || ! grep -q '[^[:space:]]' "$claude_md"; then
                 rm -f "$claude_md"
@@ -266,9 +442,12 @@ cmd_update() {
     if [[ -f "$CCT_SOURCE/cct" ]]; then
         local cct_path="$(which cct 2>/dev/null || echo "$HOME/.local/bin/cct")"
         if [[ -w "$cct_path" ]] || [[ -w "$(dirname "$cct_path")" ]]; then
-            cp "$CCT_SOURCE/cct" "$cct_path"
-            chmod +x "$cct_path"
-            log_info "Updated cct binary"
+            if cp "$CCT_SOURCE/cct" "$cct_path" 2>/dev/null; then
+                chmod +x "$cct_path" 2>/dev/null || true
+                log_info "Updated cct binary: $cct_path"
+            else
+                log_warn "Cannot update cct binary (copy failed): $cct_path"
+            fi
         else
             log_warn "Cannot update cct binary (no write permission)"
         fi
@@ -277,18 +456,22 @@ cmd_update() {
     # Update all recorded installations
     check_source
 
+    mapfile -t _install_lines < "$INSTALLATIONS_FILE" 2>/dev/null || true
+
     local count=0
-    while IFS='|' read -r path type date; do
-        [[ -z "$path" ]] && continue
+    for line in "${_install_lines[@]}"; do
+        [[ -z "${line//[[:space:]]/}" ]] && continue
+        IFS='|' read -r path type date <<< "$line"
+        [[ -z "${path:-}" ]] && continue
         if [[ -d "$path" ]]; then
             log_blue "Updating: $path"
-            do_install "$path" "$type"
-            ((count++))
+            do_install "$path" "${type:-project}" "${date:-}"
+            ((count+=1))
         else
             log_warn "Skipping (not found): $path"
             remove_installation "$path"
         fi
-    done < "$INSTALLATIONS_FILE"
+    done
 
     echo ""
     log_info "Updated $count installation(s)"

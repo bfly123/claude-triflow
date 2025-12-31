@@ -12,10 +12,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log_info() { echo -e "${GREEN}[+]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-log_error() { echo -e "${RED}[-]${NC} $1"; }
-log_blue() { echo -e "${BLUE}[*]${NC} $1"; }
+log_info() { printf "${GREEN}[+]${NC} %s\n" "$1"; }
+log_warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
+log_error() { printf "${RED}[-]${NC} %s\n" "$1"; }
+log_blue() { printf "${BLUE}[*]${NC} %s\n" "$1"; }
 
 # Help
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then

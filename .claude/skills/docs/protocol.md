@@ -135,6 +135,13 @@ These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Clau
 - `triflow_state_finalize`
   - input: `verification` (short), `changedFiles` (optional)
   - effect: marks current step/substep done, advances `current`, regenerates `todo.md`, appends `plan_log.md`
+  - note: the recommended `TR-FINALIZE` request adds a best-effort git commit after finalization:
+    ```json
+    { "op": "run", "cmd": "git add -A && git commit -m \"Step {{stepIndex}}: {{stepTitle}}\" --allow-empty || true", "cwd": "." }
+    ```
+    - placeholders:
+      - `{{stepIndex}}`: step number (prefer 1-based; if state uses 0-based index, use `stepIndex + 1`)
+      - `{{stepTitle}}`: step title
 - `triflow_state_mark_blocked`
   - input: `reason` (short)
   - effect: marks current step/substep blocked, regenerates `todo.md`, appends `plan_log.md` (optional)
@@ -147,9 +154,9 @@ These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Clau
   - goal: reliably trigger the next `/tr` without requiring Codex to "understand" a domain op
   - recommended op:
     ```json
-    { "op": "run", "cmd": "python3 automation/autoloop.py --once", "cwd": ".", "timeoutMs": 600000 }
+    { "op": "run", "cmd": "python3 .claude/skills/tr/scripts/autoloop.py --repo-root . --once", "cwd": ".", "timeoutMs": 600000 }
     ```
-  - behavior (implemented by `automation/autoloop.py`):
+  - behavior (implemented by `.claude/skills/tr/scripts/autoloop.py`):
     1) loads `state.json` and checks whether there are remaining steps
     2) reads the latest Claude session JSONL under `~/.claude/projects/<project-dir>/*.jsonl` (excluding `agent-*.jsonl`)
     3) finds the latest record with `message.usage` and estimates current context window using:

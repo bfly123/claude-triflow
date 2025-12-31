@@ -1,8 +1,12 @@
 ---
-description: Review (v3) - Dual review with Claude and Codex
+description: Review - Dual review with Claude and Codex
 argument-hint: <mode> [context]
 ---
 
-TriFlow skills live in `.claude/skills/` for progressive loading.
+Run the unified review workflow for either a step or the full task.
 
-See `.claude/skills/review/SKILL.md`.
+Read and follow:
+- `.claude/skills/review/SKILL.md`
+- `.claude/skills/review/references/flow.md`
+
+Input: `$ARGUMENTS` (include `mode=step` or `mode=task` plus the relevant context)

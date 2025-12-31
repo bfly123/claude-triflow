@@ -33,10 +33,6 @@ class Cursor:
         return {"type": self.type, "stepIndex": self.step_index, "subIndex": self.sub_index}
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
-
-
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -67,7 +63,8 @@ def _run(cmd: list[str], *, cwd: Path, timeout_s: int = 60) -> subprocess.Comple
 
 
 def _lask(repo: Path, text: str) -> None:
-    proc = _run(["lask", text], cwd=repo, timeout_s=30)
+    lask_path = repo / ".claude" / "skills" / "tr" / "scripts" / "lask"
+    proc = _run([str(lask_path), text], cwd=repo, timeout_s=30)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode("utf-8", errors="replace").strip() or "lask failed")
 
@@ -124,12 +121,6 @@ def _find_latest_session_jsonl(project_dir: Path) -> Path | None:
             best = path
             best_mtime = mtime
     return best
-
-
-def _usage_tokens(usage: dict[str, Any]) -> tuple[int, int]:
-    input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
-    output_tokens = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
-    return input_tokens, output_tokens
 
 
 def _extract_message_model_and_usage(obj: Any) -> tuple[str | None, dict[str, Any] | None]:
@@ -228,10 +219,6 @@ def _get_context_limit_for_model(model: str | None, *, default_limit: int) -> in
 
 
 def _prompt_tokens_for_usage(usage: dict[str, Any]) -> int:
-    """
-    Approximate current context window size from a single message usage record.
-    Prefer explicit prompt/input totals when available; otherwise sum input + cache read/creation.
-    """
     if "prompt_tokens" in usage:
         try:
             return int(usage.get("prompt_tokens") or 0)
@@ -305,6 +292,7 @@ def _trigger(repo: Path, *, do_clear: bool) -> None:
         _lask(repo, "/clear")
         time.sleep(2)
     _lask(repo, "/tr")
+
 
 def _cursor_from_json(value: Any) -> Cursor | None:
     if not isinstance(value, dict):
@@ -457,8 +445,15 @@ def daemon(
             time.sleep(poll_s)
 
 
+def _resolve_repo_root(value: str | None) -> Path:
+    if value:
+        return Path(value).expanduser().resolve()
+    return Path.cwd().resolve()
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="TriFlow autoloop daemon: trigger /tr when state advances")
+    parser.add_argument("--repo-root", help="TriFlow project root directory (default: current working directory)")
     parser.add_argument("--once", action="store_true", help="Run a single evaluation/trigger (for FileOps run op)")
     parser.add_argument("--threshold", type=int, default=70, help="Clear only if computed usage percent > threshold")
     parser.add_argument("--context-limit", type=int, default=200_000, help="Claude context limit for percent calculation")
@@ -466,7 +461,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--poll", type=float, default=0.5, help="Poll interval seconds (daemon mode)")
     args = parser.parse_args(argv)
 
-    repo = _repo_root()
+    repo = _resolve_repo_root(args.repo_root)
     state_path = repo / "state.json"
     state_file = repo / ".claude" / "autoloop_state.json"
     lock_path = repo / ".claude" / "autoloop.lock"
@@ -496,3 +491,4 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+

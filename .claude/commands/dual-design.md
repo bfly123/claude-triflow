@@ -1,8 +1,12 @@
 ---
-description: Dual Design (v3) - Parallel design with merge
+description: Dual Design - Parallel design with merge
 argument-hint: <design-type> <context>
 ---
 
-TriFlow skills live in `.claude/skills/` for progressive loading.
+Run the Dual Design workflow (Claude + Codex independent design, then merge).
 
-See `.claude/skills/dual-design/SKILL.md`.
+Read and follow:
+- `.claude/skills/dual-design/SKILL.md`
+- `.claude/skills/dual-design/references/flow.md`
+
+Input: `$ARGUMENTS` (include `design_type` and any relevant context)

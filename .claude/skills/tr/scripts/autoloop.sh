@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$WORKDIR"
+# TriFlow autoloop runner.
+# Assumption: run from project root (WORKDIR = pwd).
+
+WORKDIR="$(pwd)"
 
 PIDFILE="$WORKDIR/.claude/autoloop.pid"
 LOGFILE="$WORKDIR/.claude/autoloop.log"
 
 ensure_deps() {
   command -v python3 >/dev/null || { echo "python3 not found" >&2; exit 1; }
-  command -v lask >/dev/null || { echo "lask not found" >&2; exit 1; }
+}
+
+autoloop_py() {
+  echo "$WORKDIR/.claude/skills/tr/scripts/autoloop.py"
 }
 
 is_running() {
@@ -32,7 +37,7 @@ start() {
   fi
 
   : >"$LOGFILE"
-  nohup python3 -u "$WORKDIR/automation/autoloop.py" >>"$LOGFILE" 2>&1 &
+  nohup python3 -u "$(autoloop_py)" --repo-root "$WORKDIR" >>"$LOGFILE" 2>&1 &
   local pid=$!
   echo "$pid" >"$PIDFILE"
   echo "autoloop started (pid $pid)"
@@ -73,7 +78,7 @@ status() {
 
 once() {
   ensure_deps
-  python3 "$WORKDIR/automation/autoloop.py" --once
+  python3 "$(autoloop_py)" --repo-root "$WORKDIR" --once
 }
 
 cmd="${1:-start}"
@@ -87,3 +92,4 @@ case "$cmd" in
     exit 2
     ;;
 esac
+

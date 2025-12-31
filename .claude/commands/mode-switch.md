@@ -1,8 +1,12 @@
 ---
-description: Mode Switch (v3) - Switch between plan/bypass modes
+description: Mode Switch - Switch between plan/bypass modes
 argument-hint: [mode]
 ---
 
-TriFlow skills live in `.claude/skills/` for progressive loading.
+Switch Claude between plan/bypass modes as needed.
 
-See `.claude/skills/mode-switch/SKILL.md`.
+Read and follow:
+- `.claude/skills/mode-switch/SKILL.md`
+- `.claude/skills/mode-switch/references/flow.md`
+
+Input: `$ARGUMENTS` (optional target mode)

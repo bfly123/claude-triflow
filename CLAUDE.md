@@ -1,3 +1,18 @@
+## Project Context
+
+This is the **cct (Claude Code TriFlow)** development repository.
+
+Key considerations:
+- **Cross-platform**: Scripts must work on Linux and macOS (BSD vs GNU tools)
+- **Portability**: Use relative paths and environment variables, avoid hardcoded paths
+- **Self-contained**: All dependencies bundled in .claude/skills/
+- **Safe installation**: cct add/delete must not damage user's other tools
+- **Documentation**: Keep docs/triflow_v3_architecture.md updated
+
+This is NOT a regular project - changes here affect all TriFlow installations.
+
+---
+
 # claude_triflows — Project Memory (TriFlow)
 
 Pure Skill workflow for structured task execution.

@@ -20,6 +20,7 @@ Create executable plan artifacts: `todo.md` + `state.json` + `plan_log.md`
 ### 1. Initialize
 - Get requirement from `$ARGUMENTS`
 - Analyze project: tech stack, key files, background
+- If requirement involves unfamiliar technologies/APIs/libraries, use WebSearch/WebFetch to review official docs + best practices before finalizing the plan
 
 ### 2. Dual Design (Plan)
 
@@ -87,7 +88,7 @@ Call:
         "finalDone": ["criterion 1", "criterion 2"]
       }
     },
-    { "op": "run", "cmd": "./automation/autoloop.sh start", "cwd": "." }
+    { "op": "run", "cmd": "bash .claude/skills/tr/scripts/autoloop.sh start", "cwd": "." }
   ],
   "report": { "changedFiles": true, "diffSummary": true, "commandOutputs": "never" }
 }
@@ -120,3 +121,4 @@ Next: Use /tr to start execution
 2. **Merge Discussion**: 2-3 rounds to eliminate redundancy and fill gaps
 3. **Coarse-grained**: Titles only, details in /tr
 4. **Recoverable**: Context enables continuity after /clear
+5. **Research-driven**: Use WebSearch and WebFetch to gather info on unfamiliar tech/APIs/best practices before finalizing the plan

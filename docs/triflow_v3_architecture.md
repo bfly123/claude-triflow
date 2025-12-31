@@ -22,18 +22,9 @@ TriFlow v3.0 遵循以下五大核心设计原则：
 5.  **自动恢复 (Auto-Recovery)**: 系统设计为“无状态”依赖。即使 `/clear` 清空上下文，也能通过读取 `state.json` 瞬间恢复执行进度。
 
 ---
+## 3. 系统架构 (System Architecture)
 
-## 3. 版本演进 (Evolution)
-
-*   **v1.0**: 简单的 `/expand` + `/run` 模式。缺乏状态持久化，容易迷失进度。
-*   **v2.0**: 引入 `state.json`，但状态管理与视图仍混用，且 Claude 有时会越权修改文件。
-*   **v3.0**: **完全分离架构**。Claude 强制锁定在 Plan Mode，状态管理严格遵循 SSOT 原则，引入自动化守护进程。
-
----
-
-## 4. 系统架构 (System Architecture)
-
-### 4.1 整体架构图
+### 3.1 整体架构图
 
 ```mermaid
 graph TD
@@ -71,7 +62,7 @@ graph TD
     style State fill:#f96,stroke:#333,stroke-width:2px
 ```
 
-### 4.2 项目文件结构
+### 3.2 项目文件结构
 
 ```text
 claude_triflows/
@@ -80,7 +71,11 @@ claude_triflows/
 │   │   ├── SKILL.md       # 简短入口 (~10行)
 │   │   ├── references/    # 完整流程 (按需加载)
 │   │   │   └── flow.md
-│   │   └── templates/     # JSON 模板
+│   │   ├── templates/     # JSON 模板
+│   │   └── scripts/
+│   │       ├── autoloop.py  # 守护进程 (~350 行，含上下文感知)
+│   │       ├── autoloop.sh  # 生命周期管理 (Start/Stop)
+│   │       └── lask         # 捆绑的 lask 工具 (无外部依赖)
 │   ├── tp/
 │   ├── dual-design/
 │   ├── review/            # 统一审查 skill
@@ -90,9 +85,6 @@ claude_triflows/
 │   └── docs/
 │       ├── protocol.md    # FileOps 协议规范
 │       └── formats.md     # 状态文件格式定义
-├── automation/             # 自动化层 (Daemon)
-│   ├── autoloop.py        # 守护进程 (~350 行，含上下文感知)
-│   └── autoloop.sh        # 生命周期管理 (Start/Stop)
 ├── state.json             # 任务状态 (SSOT - 唯一数据源)
 ├── todo.md                # 只读视图 (由 State 渲染)
 └── plan_log.md            # 执行日志 (流水记录)
@@ -100,9 +92,9 @@ claude_triflows/
 
 ---
 
-## 5. 通信协议 (FileOps Protocol)
+## 4. 通信协议 (FileOps Protocol)
 
-### 5.1 FileOpsREQ (Claude → Codex)
+### 4.1 FileOpsREQ (Claude → Codex)
 请求包含明确的意图、验收标准和原子操作列表。
 
 ```json
@@ -114,25 +106,25 @@ claude_triflows/
   "done": ["状态更新为 done", "指针移动到下一步"],
   "ops": [
     { "op": "triflow_state_finalize", "verification": "verify_pointer_moved" },
-    { "op": "run", "cmd": "python3 automation/autoloop.py --once" }
+    { "op": "run", "cmd": "python3 .claude/skills/tr/scripts/autoloop.py --repo-root . --once" }
   ],
   "report": { "changedFiles": true }
 }
 ```
 
-### 5.2 FileOpsRES (Codex → Claude)
+### 4.2 FileOpsRES (Codex → Claude)
 响应包含执行状态 (`ok|ask|fail|split`) 和变更证据。
 
-### 5.3 域操作指令 (Domain Ops)
+### 4.3 域操作指令 (Domain Ops)
 为了保证状态一致性，引入了特定的高层操作指令：
 *   `triflow_plan_init`: 初始化全新的计划文件。
 *   `triflow_state_preflight`: 执行前检查（读取状态 + 递增尝试次数）。
 *   `triflow_state_finalize`: 步骤完成（标记 Done + 移动指针）。
 *   `triflow_state_mark_blocked`: 标记阻塞。
 *   `triflow_state_apply_split`: 动态拆分子任务。
-*   `triflow_state_append_steps`: **(New)** 任务完成后追加 1-2 个修复步骤（用于 Final Review 发现中等问题时）。
+*   `triflow_state_append_steps`: 任务完成后追加 1-2 个修复步骤（用于 Final Review 发现中等问题时）。
 
-### 5.4 Validation Schema
+### 4.4 Validation Schema
 协议实施严格的校验规则以确保安全性与一致性：
 
 *   **必填字段**: `proto`, `id`, `purpose`, `ops`。
@@ -144,17 +136,17 @@ claude_triflows/
 
 ---
 
-## 6. 关键工作流 (Workflows)
+## 5. 关键工作流 (Workflows)
 
-### 6.1 /tp 计划流程
+### 5.1 /tp 计划流程
 1.  **Input**: 用户输入原始需求。
 2.  **Dual Design**: Claude 与 Codex 并行设计任务分解。
 3.  **Confirmation**: 用户确认计划。
 4.  **Init**: 调用 `triflow_plan_init` 生成 `state.json` 和 `todo.md`。
 5.  **Boot**: 启动 `autoloop` 进程。
 
-### 6.2 /tr 执行流程 (9步法)
-此流程升级为 9 步，强化了分歧检查和最终审查环节。
+### 5.2 /tr 执行流程 (9步法)
+执行流程包含 9 个步骤：
 
 1.  **Preflight**: (`triflow_state_preflight`) 读取当前状态，更新重试计数。
 2.  **Dual Design**: 双方独立设计 + 合并讨论（包含 split 判断）。
@@ -168,9 +160,9 @@ claude_triflows/
 8.  **Finalize**: (`triflow_state_finalize`) 完成步骤，更新状态。
 9.  **Final Review**: (仅在任务链结束时) 全局审查项目状态，生成总结报告到 `final/` 目录。
 
-### 6.3 Autoloop 与上下文管理
+### 5.3 Autoloop 与上下文管理
 
-守护进程 `autoloop.py` 负责维持心跳和上下文健康：
+守护进程 `.claude/skills/tr/scripts/autoloop.py` 负责维持心跳和上下文健康：
 
 *   **监控**: 轮询 `state.json` 的 `mtime` (0.5s 间隔, 20s 冷却)。
 *   **上下文感知 (Context Awareness)**:
@@ -180,7 +172,7 @@ claude_triflows/
     *   `if usage > 70%`: 执行 `/clear` (清理上下文) ➔ `/tr` (无缝恢复)。
     *   `else`: 直接执行 `/tr`。
 
-### 6.4 Skills 层与模板系统
+### 5.4 Skills 层与模板系统
 
 Skills 层采用模块化结构，支持渐进式加载以节省 Context：
 

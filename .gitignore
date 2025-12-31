@@ -40,3 +40,19 @@ dist/
 build/
 *.pyc
 __pycache__/
+
+# Session files
+.claude-session
+.codex-session
+.gemini-session
+.claude/autoloop.lock
+.claude/autoloop.pid
+.claude/autoloop.log
+.claude/autoloop_state.json
+state.json
+plan_log.md
+tmp/
+final/
+
+# Plan files
+.claude/plans/

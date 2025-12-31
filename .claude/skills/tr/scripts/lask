@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""
+lask - Send message to Claude pane (sync, no reply wait).
+
+Counterpart to cask/gask:
+- cask: Claude → Codex
+- gask: Claude → Gemini
+- lask: Codex → Claude (Local pane)
+
+Usage: lask <message>
+       lask --pane <id> <message>
+"""
+from __future__ import annotations
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+def _usage() -> None:
+    print("Usage: lask [--pane ID] <message>", file=sys.stderr)
+    print("Send message to Claude pane and press Enter", file=sys.stderr)
+
+
+def _get_claude_pane() -> str | None:
+    """Auto-detect Claude pane_id from session files or env"""
+    # Try environment variable first
+    if pane := os.environ.get("CLAUDE_PANE_ID"):
+        return pane
+
+    # Try .claude-session
+    session_file = Path.cwd() / ".claude-session"
+    if session_file.exists():
+        try:
+            data = json.loads(session_file.read_text())
+            if pane := data.get("pane_id"):
+                return str(pane)
+        except Exception:
+            pass
+
+    return None
+
+
+def _send_to_pane(pane_id: str, text: str) -> bool:
+    """Send text to WezTerm pane and press Enter"""
+    try:
+        # Send text (no paste mode for short commands)
+        subprocess.run(
+            ["wezterm", "cli", "send-text", "--pane-id", pane_id, "--no-paste", text],
+            check=True, capture_output=True
+        )
+        # Send Enter
+        subprocess.run(
+            ["wezterm", "cli", "send-text", "--pane-id", pane_id, "--no-paste"],
+            input=b"\r", check=True, capture_output=True
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error sending to pane {pane_id}: {e.stderr.decode()}", file=sys.stderr)
+        return False
+    except FileNotFoundError:
+        print("Error: wezterm CLI not found", file=sys.stderr)
+        return False
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) <= 1:
+        _usage()
+        return 1
+
+    pane_id = None
+    parts = []
+
+    it = iter(argv[1:])
+    for token in it:
+        if token in ("-h", "--help"):
+            _usage()
+            return 0
+        if token in ("-p", "--pane"):
+            try:
+                pane_id = next(it)
+            except StopIteration:
+                print("--pane requires an ID", file=sys.stderr)
+                return 1
+            continue
+        parts.append(token)
+
+    message = " ".join(parts).strip()
+    if not message:
+        _usage()
+        return 1
+
+    # Auto-detect pane if not specified
+    if not pane_id:
+        pane_id = _get_claude_pane()
+
+    if not pane_id:
+        print("Error: No Claude pane_id found", file=sys.stderr)
+        print("Tip: Create .claude-session or use --pane", file=sys.stderr)
+        return 1
+
+    if _send_to_pane(pane_id, message):
+        print(f"✅ Sent to Claude (pane {pane_id}): {message[:50]}...")
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

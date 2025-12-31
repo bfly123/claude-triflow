@@ -1,8 +1,14 @@
 ---
-description: TriFlow Plan (v3) - Create task plan
+description: TriFlow Plan - Create task plan with dual design
 argument-hint: <requirement>
 ---
 
-TriFlow skills live in `.claude/skills/` for progressive loading.
+Execute the TriFlow Plan workflow.
 
-See `.claude/skills/tp/SKILL.md`.
+Read and follow:
+- `.claude/skills/tp/SKILL.md`
+- `.claude/skills/tp/references/flow.md`
+
+Input: `$ARGUMENTS` (the requirement to plan)
+
+Do not modify files directly; delegate all file operations to Codex via `/file-op`.

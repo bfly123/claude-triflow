@@ -1,8 +1,12 @@
 ---
-description: Ask Codex (v3) - Send prompt to Codex
+description: Ask Codex - Send prompt to Codex
 argument-hint: <prompt>
 ---
 
-TriFlow skills live in `.claude/skills/` for progressive loading.
+Send a prompt to Codex (via cask), wait for the response, and validate it (optionally JSON-only).
 
-See `.claude/skills/ask-codex/SKILL.md`.
+Read and follow:
+- `.claude/skills/ask-codex/SKILL.md`
+- `.claude/skills/ask-codex/references/usage.md`
+
+Input: `$ARGUMENTS` (the prompt to send)
