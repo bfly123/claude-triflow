@@ -1,8 +1,10 @@
 ---
 description: Dual Design - Parallel design with merge
 argument-hint: <design-type> <context>
-allowed-tools: Read, Glob, Grep, Bash, Task, Skill, WebSearch, WebFetch, AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash, Task, Skill, WebSearch, WebFetch, AskUserQuestion, EnterPlanMode
 ---
+
+**IMPORTANT**: First use EnterPlanMode to activate plan mode before proceeding.
 
 Run the Dual Design workflow (Claude + Codex independent design, then merge).
 
