@@ -452,8 +452,8 @@ def _resolve_repo_root(value: str | None) -> Path:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="TriFlow autoloop daemon: trigger /tr when state advances")
-    parser.add_argument("--repo-root", help="TriFlow project root directory (default: current working directory)")
+    parser = argparse.ArgumentParser(description="AutoFlow autoloop daemon: trigger /tr when state advances")
+    parser.add_argument("--repo-root", help="AutoFlow project root directory (default: current working directory)")
     parser.add_argument("--once", action="store_true", help="Run a single evaluation/trigger (for FileOps run op)")
     parser.add_argument("--threshold", type=int, default=70, help="Clear only if computed usage percent > threshold")
     parser.add_argument("--context-limit", type=int, default=200_000, help="Claude context limit for percent calculation")

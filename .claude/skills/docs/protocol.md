@@ -1,4 +1,4 @@
-# TriFlow Communication Protocol
+# AutoFlow Communication Protocol
 
 This protocol is designed for the "Claude stays in plan mode, Codex does all file I/O" architecture.
 
@@ -10,7 +10,7 @@ Codex executes a list of explicit operations (`ops`) and returns `FileOpsRES`.
 
 ```json
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "S2",
   "purpose": "execute_step|write_plan_files|finalize_step|read_state|split_step",
   "summary": "1 sentence intent for humans",
@@ -43,7 +43,7 @@ Codex executes a list of explicit operations (`ops`) and returns `FileOpsRES`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| proto | string | ✓ | Must be "triflow.fileops.v1" |
+| proto | string | ✓ | Must be "autoflow.fileops.v1" |
 | id | string | ✓ | Unique request ID (e.g., "TR-PREFLIGHT") |
 | purpose | enum | ✓ | One of: execute_step, write_plan_files, finalize_step, read_state, split_step |
 | summary | string | ✓ | 1-sentence intent (max 100 chars) |
@@ -75,16 +75,16 @@ Each op must have:
 | apply_patch | patch | - |
 | run | cmd | cwd, timeoutMs |
 
-**TriFlow domain ops:**
+**AutoFlow domain ops:**
 
 | op | Required fields | Optional fields |
 |----|-----------------|-----------------|
-| triflow_plan_init | plan | - |
-| triflow_state_preflight | path | maxAttempts |
-| triflow_state_apply_split | stepIndex, substeps | - |
-| triflow_state_finalize | verification | changedFiles |
-| triflow_state_mark_blocked | reason | - |
-| triflow_state_append_steps | steps | maxAllowed |
+| autoflow_plan_init | plan | - |
+| autoflow_state_preflight | path | maxAttempts |
+| autoflow_state_apply_split | stepIndex, substeps | - |
+| autoflow_state_finalize | verification | changedFiles |
+| autoflow_state_mark_blocked | reason | - |
+| autoflow_state_append_steps | steps | maxAllowed |
 
 ### report Validation
 
@@ -100,7 +100,7 @@ On validation failure, return before execution:
 
 ```json
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "<from request>",
   "status": "validation_error",
   "errors": [
@@ -118,21 +118,21 @@ On validation failure, return before execution:
 - `apply_patch`: apply `apply_patch`-format patch
 - `run`: run a shell command
 
-### TriFlow domain `ops` (recommended)
+### AutoFlow domain `ops` (recommended)
 
 These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Claude constructing full file contents.
 
-- `triflow_plan_init`
+- `autoflow_plan_init`
   - input: `plan` (taskName, objective, context, constraints, steps[], finalDone[])
   - effect: writes `todo.md`, `state.json`, `plan_log.md`
-- `triflow_state_preflight`
+- `autoflow_state_preflight`
   - input: `path` (default `state.json`), `maxAttempts`
   - effect: loads state, validates `current`, increments attempts if allowed, persists state
   - output (in `data`): current step/substep context and a compact state summary
-- `triflow_state_apply_split`
+- `autoflow_state_apply_split`
   - input: `stepIndex`, `substeps` (3-7 titles)
   - effect: writes substeps into `state.json`, regenerates `todo.md`
-- `triflow_state_finalize`
+- `autoflow_state_finalize`
   - input: `verification` (short), `changedFiles` (optional)
   - effect: marks current step/substep done, advances `current`, regenerates `todo.md`, appends `plan_log.md`
   - note: the recommended `TR-FINALIZE` request adds a best-effort git commit after finalization:
@@ -142,15 +142,15 @@ These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Clau
     - placeholders:
       - `{{stepIndex}}`: step number (prefer 1-based; if state uses 0-based index, use `stepIndex + 1`)
       - `{{stepTitle}}`: step title
-- `triflow_state_mark_blocked`
+- `autoflow_state_mark_blocked`
   - input: `reason` (short)
   - effect: marks current step/substep blocked, regenerates `todo.md`, appends `plan_log.md` (optional)
-- `triflow_state_append_steps`
+- `autoflow_state_append_steps`
   - input: `steps` (1-2 titles), `maxAllowed` (default 2)
   - precondition: `current.type == 'none'` (task completed)
   - effect: appends steps to `state.json`, sets `current` to first new step, regenerates `todo.md`, appends to `plan_log.md`
   - error: if `steps.length > maxAllowed`, return `fail` with suggestion to create follow-up task
-- `triflow_auto_loop` (explicit `run`-based)
+- `autoflow_auto_loop` (explicit `run`-based)
   - goal: reliably trigger the next `/tr` without requiring Codex to "understand" a domain op
   - recommended op:
     ```json
@@ -175,7 +175,7 @@ These ops let Codex update `todo.md` / `state.json` / `plan_log.md` without Clau
 
 ```json
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "S2",
   "status": "ok|ask|fail|split",
   "changedFiles": ["todo.md", "state.json"],

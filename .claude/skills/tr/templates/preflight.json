@@ -1,11 +1,11 @@
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-PREFLIGHT",
   "purpose": "read_state",
   "summary": "Load state.json, validate current step, bump attempts if allowed",
   "done": ["Returns current step context or a terminal status"],
   "ops": [
-    { "op": "triflow_state_preflight", "path": "state.json", "maxAttempts": 2 }
+    { "op": "autoflow_state_preflight", "path": "state.json", "maxAttempts": 2 }
   ],
   "report": { "changedFiles": true, "diffSummary": true, "commandOutputs": "never" },
   "_meta": {

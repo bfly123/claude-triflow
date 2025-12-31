@@ -1,8 +1,8 @@
-# TriFlow v3.0 架构设计报告
+# AutoFlow v3.0 架构设计报告
 
 ## 1. 项目概述 (Overview)
 
-TriFlow v3.0 是一个专为 AI 协作设计的高级工作流框架，旨在解决复杂任务中的上下文丢失、执行偏差及状态混乱问题。它通过严格的职责分离、标准化的通信协议以及自动化的上下文管理，实现稳定、可恢复的自动化任务执行。
+AutoFlow v3.0 是一个专为 AI 协作设计的高级工作流框架，旨在解决复杂任务中的上下文丢失、执行偏差及状态混乱问题。它通过严格的职责分离、标准化的通信协议以及自动化的上下文管理，实现稳定、可恢复的自动化任务执行。
 
 ### 核心理念
 *   **Claude (大脑/控制面)**: 永驻 Plan Mode。负责高层规划、逻辑审核与决策，**严禁直接修改文件**。
@@ -13,7 +13,7 @@ TriFlow v3.0 是一个专为 AI 协作设计的高级工作流框架，旨在解
 
 ## 2. 设计原则 (Design Principles)
 
-TriFlow v3.0 遵循以下五大核心设计原则：
+AutoFlow v3.0 遵循以下五大核心设计原则：
 
 1.  **职责分离 (Separation of Duties)**: Claude 仅负责规划与审核，Codex 负责所有执行操作。这种物理隔离防止了幻觉代码直接写入生产环境。
 2.  **数据源唯一 (Single Source of Truth)**: `state.json` 是系统的唯一事实来源。`todo.md` 仅作为自动生成的只读视图存在。
@@ -22,6 +22,7 @@ TriFlow v3.0 遵循以下五大核心设计原则：
 5.  **自动恢复 (Auto-Recovery)**: 系统设计为“无状态”依赖。即使 `/clear` 清空上下文，也能通过读取 `state.json` 瞬间恢复执行进度。
 
 ---
+
 ## 3. 系统架构 (System Architecture)
 
 ### 3.1 整体架构图
@@ -41,7 +42,7 @@ graph TD
     end
 
     subgraph Data_Plane [Codex (Executor)]
-        DomainOps[triflow_* Domain Ops]
+        DomainOps[autoflow_* Domain Ops]
         Patch[apply_patch]
         Shell[run shell]
     end
@@ -65,7 +66,7 @@ graph TD
 ### 3.2 项目文件结构
 
 ```text
-claude_triflows/
+claude_autoflows/
 ├── .claude/skills/         # Skills 层 (渐进式加载结构)
 │   ├── tr/
 │   │   ├── SKILL.md       # 简短入口 (~10行)
@@ -99,13 +100,13 @@ claude_triflows/
 
 ```json
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-FINALIZE",
   "purpose": "finalize_step",
   "summary": "完成当前步骤并推进状态",
   "done": ["状态更新为 done", "指针移动到下一步"],
   "ops": [
-    { "op": "triflow_state_finalize", "verification": "verify_pointer_moved" },
+    { "op": "autoflow_state_finalize", "verification": "verify_pointer_moved" },
     { "op": "run", "cmd": "python3 .claude/skills/tr/scripts/autoloop.py --repo-root . --once" }
   ],
   "report": { "changedFiles": true }
@@ -117,19 +118,19 @@ claude_triflows/
 
 ### 4.3 域操作指令 (Domain Ops)
 为了保证状态一致性，引入了特定的高层操作指令：
-*   `triflow_plan_init`: 初始化全新的计划文件。
-*   `triflow_state_preflight`: 执行前检查（读取状态 + 递增尝试次数）。
-*   `triflow_state_finalize`: 步骤完成（标记 Done + 移动指针）。
-*   `triflow_state_mark_blocked`: 标记阻塞。
-*   `triflow_state_apply_split`: 动态拆分子任务。
-*   `triflow_state_append_steps`: 任务完成后追加 1-2 个修复步骤（用于 Final Review 发现中等问题时）。
+*   `autoflow_plan_init`: 初始化全新的计划文件。
+*   `autoflow_state_preflight`: 执行前检查（读取状态 + 递增尝试次数）。
+*   `autoflow_state_finalize`: 步骤完成（标记 Done + 移动指针）。
+*   `autoflow_state_mark_blocked`: 标记阻塞。
+*   `autoflow_state_apply_split`: 动态拆分子任务。
+*   `autoflow_state_append_steps`: 任务完成后追加 1-2 个修复步骤（用于 Final Review 发现中等问题时）。
 
 ### 4.4 Validation Schema
 协议实施严格的校验规则以确保安全性与一致性：
 
 *   **必填字段**: `proto`, `id`, `purpose`, `ops`。
 *   **Ops 校验**:
-    *   仅允许标准 ops (`run`, `write_file` 等) 和授权的 domain ops (`triflow_*`)。
+    *   仅允许标准 ops (`run`, `write_file` 等) 和授权的 domain ops (`autoflow_*`)。
     *   禁止高危命令（如 `rm -rf /`）。
 *   **Report 校验**: 确保请求的报告格式（如 `changedFiles`）被 Codex 正确理解。
 *   **错误响应**: 校验失败时返回 `validation_error` 格式的 JSON 响应，包含具体字段错误说明。
@@ -142,22 +143,22 @@ claude_triflows/
 1.  **Input**: 用户输入原始需求。
 2.  **Dual Design**: Claude 与 Codex 并行设计任务分解。
 3.  **Confirmation**: 用户确认计划。
-4.  **Init**: 调用 `triflow_plan_init` 生成 `state.json` 和 `todo.md`。
+4.  **Init**: 调用 `autoflow_plan_init` 生成 `state.json` 和 `todo.md`。
 5.  **Boot**: 启动 `autoloop` 进程。
 
 ### 5.2 /tr 执行流程 (9步法)
 执行流程包含 9 个步骤：
 
-1.  **Preflight**: (`triflow_state_preflight`) 读取当前状态，更新重试计数。
+1.  **Preflight**: (`autoflow_state_preflight`) 读取当前状态，更新重试计数。
 2.  **Dual Design**: 双方独立设计 + 合并讨论（包含 split 判断）。
 3.  **Split Check**: 设计阶段判断是否需要拆分任务。
-    *   *If yes*: 触发 `triflow_state_apply_split` 并跳过后续执行。
+    *   *If yes*: 触发 `autoflow_state_apply_split` 并跳过后续执行。
 4.  **Build REQ**: 根据合并的设计，构建精确的 `FileOpsREQ`。
 5.  **Execute**: Codex 执行操作列表（代码修改、测试运行等）。
 6.  **Handle RES**: 解析执行结果，处理 `ask` 或 `fail` 状态。
 7.  **Review**: 调用 `/review` skill (Step Mode)，进行代码质量与功能验收。
     *   *7.5 Test (Optional)*: 如需额外验证，插入测试环节。
-8.  **Finalize**: (`triflow_state_finalize`) 完成步骤，更新状态。
+8.  **Finalize**: (`autoflow_state_finalize`) 完成步骤，更新状态。
 9.  **Final Review**: (仅在任务链结束时) 全局审查项目状态，生成总结报告到 `final/` 目录。
 
 ### 5.3 Autoloop 与上下文管理

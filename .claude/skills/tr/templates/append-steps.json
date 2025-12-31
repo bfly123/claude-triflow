@@ -1,11 +1,11 @@
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-APPEND-STEPS",
   "purpose": "execute_step",
   "summary": "Append fix steps to current task",
   "done": ["Steps appended, current pointer updated"],
   "ops": [
-    { "op": "triflow_state_append_steps", "steps": "{{steps}}", "maxAllowed": 2 }
+    { "op": "autoflow_state_append_steps", "steps": "{{steps}}", "maxAllowed": 2 }
   ],
   "report": { "changedFiles": true },
   "_meta": {

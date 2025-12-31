@@ -1,5 +1,5 @@
 ---
-description: TriFlow FileOps - Delegate file I/O to Codex
+description: AutoFlow FileOps - Delegate file I/O to Codex
 argument-hint: <FileOpsREQ JSON>
 ---
 

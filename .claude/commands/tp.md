@@ -1,9 +1,9 @@
 ---
-description: TriFlow Plan - Create task plan with dual design
+description: AutoFlow Plan - Create task plan with dual design
 argument-hint: <requirement>
 ---
 
-Execute the TriFlow Plan workflow.
+Execute the AutoFlow Plan workflow.
 
 Read and follow:
 - `.claude/skills/tp/SKILL.md`

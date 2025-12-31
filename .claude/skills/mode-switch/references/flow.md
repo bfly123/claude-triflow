@@ -6,7 +6,7 @@ Switch Claude between plan mode and bypass mode.
 
 ## Status: Deprecated (New Architecture)
 
-TriFlow now assumes **Claude stays in plan mode** (planning + review only), while **Codex performs all file I/O**.
+AutoFlow now assumes **Claude stays in plan mode** (planning + review only), while **Codex performs all file I/O**.
 
 - New flows should not call `/mode-switch`.
 - This file is kept for backward compatibility with older scripts/docs.

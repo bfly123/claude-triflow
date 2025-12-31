@@ -1,5 +1,5 @@
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-FINAL-REPORT",
   "purpose": "finalize_step",
   "summary": "Write final task summary report",

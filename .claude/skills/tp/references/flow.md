@@ -1,4 +1,4 @@
-# TriFlow Plan
+# AutoFlow Plan
 
 Create executable plan artifacts: `todo.md` + `state.json` + `plan_log.md`
 
@@ -71,14 +71,14 @@ Call:
 
 ```json
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TP",
   "purpose": "write_plan_files",
   "summary": "Initialize todo.md/state.json/plan_log.md from confirmed plan",
   "done": ["Plan files exist and match formats"],
   "ops": [
     {
-      "op": "triflow_plan_init",
+      "op": "autoflow_plan_init",
       "plan": {
         "taskName": "<Task Name>",
         "objective": { "goal": "<goal>", "nonGoals": "<non-goals>", "doneWhen": "<one-line summary>" },

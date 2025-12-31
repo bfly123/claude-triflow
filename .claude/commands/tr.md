@@ -1,9 +1,9 @@
 ---
-description: TriFlow Run - Execute current step
+description: AutoFlow Run - Execute current step
 argument-hint: [optional details]
 ---
 
-Execute the TriFlow Run workflow for the current step.
+Execute the AutoFlow Run workflow for the current step.
 
 Read and follow:
 - `.claude/skills/tr/SKILL.md`

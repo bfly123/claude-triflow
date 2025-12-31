@@ -1,12 +1,12 @@
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-SPLIT",
   "purpose": "split_step",
   "summary": "Apply substeps and regenerate todo.md",
   "done": ["state.json updated with substeps", "todo.md regenerated"],
   "ops": [
     {
-      "op": "triflow_state_apply_split",
+      "op": "autoflow_state_apply_split",
       "stepIndex": "{{stepIndex}}",
       "substeps": "{{substeps}}"
     },

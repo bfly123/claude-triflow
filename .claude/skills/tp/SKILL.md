@@ -1,5 +1,5 @@
 ---
-name: TriFlow Plan
+name: AutoFlow Plan
 description: Create a task plan with dual design. Use when starting a new task or running /tp.
 ---
 

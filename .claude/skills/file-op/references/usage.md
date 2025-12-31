@@ -1,4 +1,4 @@
-# TriFlow File-Op
+# AutoFlow File-Op
 
 Claude stays in **plan mode**. This command delegates **all repo file I/O** to Codex using the `FileOpsREQ` / `FileOpsRES` JSON protocol.
 
@@ -9,7 +9,7 @@ Claude stays in **plan mode**. This command delegates **all repo file I/O** to C
 ## Input
 
 From `$ARGUMENTS`:
-- A single `FileOpsREQ` JSON object (must include `proto: "triflow.fileops.v1"`).
+- A single `FileOpsREQ` JSON object (must include `proto: "autoflow.fileops.v1"`).
 
 ---
 
@@ -36,4 +36,4 @@ TaskOutput(task_id=<task_id>, block=true)
 
 1. **Claude never edits files**: all writes/patches happen in Codex
 2. **JSON-only boundary**: request/response must be machine-parsable
-3. **Prefer domain ops**: use `triflow_*` ops for state/todo/log updates
+3. **Prefer domain ops**: use `autoflow_*` ops for state/todo/log updates

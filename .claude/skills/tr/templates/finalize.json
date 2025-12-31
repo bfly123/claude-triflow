@@ -1,11 +1,11 @@
 {
-  "proto": "triflow.fileops.v1",
+  "proto": "autoflow.fileops.v1",
   "id": "TR-FINALIZE",
   "purpose": "finalize_step",
   "summary": "Finalize current step, then auto-loop to the next step if any",
   "done": ["State advanced (or task complete) and auto-loop triggered when needed"],
   "ops": [
-    { "op": "triflow_state_finalize", "verification": "{{verification}}", "changedFiles": "{{changedFiles}}" },
+    { "op": "autoflow_state_finalize", "verification": "{{verification}}", "changedFiles": "{{changedFiles}}" },
     { "op": "run", "cmd": "git add -A && git commit -m \"Step {{stepIndex}}: {{stepTitle}}\" --allow-empty || true", "cwd": ".", "timeoutMs": 600000 },
     { "op": "run", "cmd": "python3 .claude/skills/tr/scripts/autoloop.py --repo-root . --once", "cwd": ".", "timeoutMs": 600000 }
   ],

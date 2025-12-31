@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TriFlow autoloop runner.
+# AutoFlow autoloop runner.
 # Assumption: run from project root (WORKDIR = pwd).
 
 WORKDIR="$(pwd)"

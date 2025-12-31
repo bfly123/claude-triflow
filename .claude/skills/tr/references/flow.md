@@ -1,4 +1,4 @@
-# TriFlow Run
+# AutoFlow Run
 
 Execute current step while Claude stays in plan mode and Codex performs all file I/O.
 
@@ -26,7 +26,7 @@ Call `/file-op` with `FileOpsREQ`:
 Interpret `FileOpsRES`:
 - If no plan → show `No plan. Use /tp first.` → Stop
 - If `current.type == "none"` → All done → Show summary → Stop
-- If attempts exceeded → request `triflow_state_mark_blocked` with a reason → Stop
+- If attempts exceeded → request `autoflow_state_mark_blocked` with a reason → Stop
 - Otherwise use `data.stepContext` + `data.state.current` for Step Design
 
 ### 2. Dual Design (Step)
@@ -86,7 +86,7 @@ Key rule: Codex may modify code and artifacts needed to satisfy done conditions,
 
 **status = ask** → Show questions to user → Re-run
 
-**status = fail** → Request `triflow_state_mark_blocked` with `fail.reason` → Stop
+**status = fail** → Request `autoflow_state_mark_blocked` with `fail.reason` → Stop
 
 Note: `status = split` should be handled by Step 3 (Split Check). Treat unexpected `split` here as `fail` and re-run /dual-design to decide `needsSplit`.
 
@@ -155,7 +155,7 @@ If PASS (execution path), ask Codex to:
 Send `FileOpsREQ` with `purpose: "finalize_step"` via `/file-op`. Codex returns `FileOpsRES` JSON only.
 
 Auto-loop requirement (reliable next-step trigger):
-- After finalizing, Codex must run the auto-loop trigger (see `triflow_auto_loop` in `../docs/protocol.md`; implemented as an explicit `run` op).
+- After finalizing, Codex must run the auto-loop trigger (see `autoflow_auto_loop` in `../docs/protocol.md`; implemented as an explicit `run` op).
 - If there are remaining steps, it must trigger the next `/tr` automatically using `lask`.
 - It must be executed via the FileOpsREQ protocol (no manual copy/paste).
 
