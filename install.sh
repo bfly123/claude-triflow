@@ -166,11 +166,11 @@ install_global_skills() {
 
   for skill in tr tp dual-design file-op ask-codex review mode-switch docs; do
     rm -rf "$target/skills/$skill" 2>/dev/null || true
-    cp -a "$INSTALL_PREFIX/.claude/skills/$skill" "$target/skills/"
+    cp -a "$INSTALL_PREFIX/claude_source/skills/$skill" "$target/skills/"
   done
 
   for cmd in tr.md tp.md dual-design.md file-op.md ask-codex.md review.md mode-switch.md; do
-    cp -a "$INSTALL_PREFIX/.claude/commands/$cmd" "$target/commands/"
+    cp -a "$INSTALL_PREFIX/claude_source/commands/$cmd" "$target/commands/"
   done
 
   log_info "Installed skills/commands to ~/.claude/ (globally visible)"

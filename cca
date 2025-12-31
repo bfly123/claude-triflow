@@ -334,19 +334,19 @@ remove_installation() {
 # Check source files exist (for refreshing ~/.claude/)
 check_source_dir() {
     local source_root="${1:-$CCA_SOURCE}"
-    if [[ ! -d "$source_root/.claude/skills" ]]; then
-        log_error "Skills not found in $source_root/.claude/skills/"
+    if [[ ! -d "$source_root/claude_source/skills" ]]; then
+        log_error "Skills not found in $source_root/claude_source/skills/"
         log_error "Set CCA_SOURCE to your AutoFlow repository directory"
         exit 1
     fi
-    if [[ ! -d "$source_root/.claude/commands" ]]; then
-        log_error "Commands not found in $source_root/.claude/commands/"
+    if [[ ! -d "$source_root/claude_source/commands" ]]; then
+        log_error "Commands not found in $source_root/claude_source/commands/"
         exit 1
     fi
 
     for skill in "${AUTOFLOW_SKILLS[@]}"; do
-        if [[ ! -d "$source_root/.claude/skills/$skill" ]]; then
-            log_error "Missing AutoFlow skill in source: $source_root/.claude/skills/$skill"
+        if [[ ! -d "$source_root/claude_source/skills/$skill" ]]; then
+            log_error "Missing AutoFlow skill in source: $source_root/claude_source/skills/$skill"
             exit 1
         fi
     done
@@ -361,11 +361,11 @@ install_global_skills() {
 
     for skill in "${AUTOFLOW_SKILLS[@]}"; do
         rm -rf "$target/skills/$skill" 2>/dev/null || true
-        cp -a "$source_root/.claude/skills/$skill" "$target/skills/"
+        cp -a "$source_root/claude_source/skills/$skill" "$target/skills/"
     done
 
     for cmd in "${AUTOFLOW_COMMANDS[@]}"; do
-        cp -a "$source_root/.claude/commands/$cmd" "$target/commands/"
+        cp -a "$source_root/claude_source/commands/$cmd" "$target/commands/"
     done
 
     log_info "Installed skills/commands to ~/.claude/ (globally visible)"
