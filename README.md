@@ -38,6 +38,20 @@ cd claude_code_bridge
 ```
 
 ### 3. Install cca (AutoFlow)
+
+**Option A: Via ccb (Recommended)**
+```bash
+ccb update cca         # Install or update cca via ccb
+```
+
+Other ccb commands for cca:
+```bash
+ccb -v                 # Show CCA version or install suggestion
+ccb update             # Update both CCB and CCA
+ccb update cca         # Install/update CCA only
+```
+
+**Option B: Manual installation**
 ```bash
 git clone https://github.com/bfly123/claude_code_autoflow.git
 cd claude_code_autoflow
