@@ -196,7 +196,7 @@ update_codex_config() {
         echo "$header"
         echo "trust_level = \"trusted\""
         echo "approval_policy = \"never\""
-        echo "sandbox_mode = \"workspace-write\""
+        echo "sandbox_mode = \"full-auto\""
     } >> "$tmp"
     if ( cat "$tmp" > "$codex_cfg" ) 2>/dev/null; then
         rm -f "$tmp"
