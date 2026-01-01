@@ -48,13 +48,34 @@ cd claude_code_autoflow
 
 ### CLI Commands
 
-| Command | Description |
-| :--- | :--- |
-| `cca add .` | Enable AutoFlow for current project |
-| `cca add /path` | Enable AutoFlow for specific path |
-| `cca delete .` | Remove AutoFlow from current project |
-| `cca update` | Update cca and refresh global skills |
-| `cca version` | Display version info |
+```bash
+cca <command> [options]
+```
+
+#### Project Configuration
+```bash
+cca add .              # Enable AutoFlow for current project
+cca add ~/myproject    # Enable AutoFlow for specific path
+cca delete .           # Remove AutoFlow config from current project
+cca delete ~/myproject # Remove AutoFlow config from specific path
+cca list               # Show all configured projects
+```
+
+#### Maintenance
+```bash
+cca update             # Update cca and refresh ~/.claude/ skills
+cca update --local     # Refresh ~/.claude/ from local CCA_SOURCE
+cca uninstall          # Remove cca from system
+cca version            # Show version and commit info
+cca help               # Show help
+```
+
+#### What `cca add` does:
+1. Registers project in `~/.config/cca/installations`
+2. Configures Codex permissions in `~/.codex/config.toml`:
+   - `trust_level = "trusted"`
+   - `approval_policy = "never"`
+   - `sandbox_mode = "full-auto"`
 
 ### Slash Commands (In-Session)
 
