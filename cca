@@ -569,6 +569,7 @@ cmd_update() {
     # Refresh globally visible skills/commands in ~/.claude/
     install_global_skills "$source_root"
 
+    local -a _install_lines=()
     mapfile -t _install_lines < "$INSTALLATIONS_FILE" 2>/dev/null || true
 
     local count=0
@@ -625,6 +626,7 @@ cmd_uninstall() {
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         # Remove all configured projects (best effort).
+        local -a _install_lines=()
         mapfile -t _install_lines < "$INSTALLATIONS_FILE" 2>/dev/null || true
         for line in "${_install_lines[@]}"; do
             [[ -z "${line//[[:space:]]/}" ]] && continue
