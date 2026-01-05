@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Automated_Collaboration-CF1322?style=for-the-badge" alt="Automated Collaboration">
 </p>
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -153,6 +153,10 @@ Example:
 
 <details>
 <summary>📜 Version History</summary>
+
+### v1.2.0
+- Add bilingual slogan and language switch
+- Add centered layout with colorful badges
 
 ### v1.1.0
 - Add Windows PowerShell support (cca.ps1)

@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Automated_Collaboration-CF1322?style=for-the-badge" alt="Automated Collaboration">
 </p>
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -96,6 +96,10 @@ cd claude-autoflow
 
 <details>
 <summary>📜 版本历史</summary>
+
+### v1.2.0
+- 添加中英文 SLOGAN 和语言切换
+- 添加居中布局和彩色徽章
 
 ### v1.1.0
 - 添加 Windows PowerShell 支持 (cca.ps1)
