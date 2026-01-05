@@ -125,10 +125,14 @@ inject_version_info() {
   fi
 
   # Method 3: From GitHub API (fallback).
-  if [[ -z "$git_commit" ]] && command -v curl >/dev/null 2>&1; then
+  if [[ -z "$git_commit" ]] && ( command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 ); then
     local api="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/main"
     local api_response
-    api_response="$(curl -fsSL "$api" 2>/dev/null || echo "")"
+    if command -v curl >/dev/null 2>&1; then
+      api_response="$(curl -fsSL "$api" 2>/dev/null || echo "")"
+    else
+      api_response="$(wget -q -O - "$api" 2>/dev/null || echo "")"
+    fi
     if [[ -n "$api_response" ]]; then
       git_commit="$(echo "$api_response" | grep -o '"sha": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-7)"
       git_date="$(echo "$api_response" | grep -o '"date": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-10)"

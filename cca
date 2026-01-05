@@ -296,10 +296,55 @@ get_local_version_info() {
     printf "%s|%s\n" "${commit:-}" "${date:-}"
 }
 
+get_installed_version_info() {
+    # Best-effort version read for an installed directory.
+    # Prefer git metadata when available; fall back to reading injected variables from cca file.
+    local dir="$1"
+    local commit=""
+    local date=""
+
+    if command -v git >/dev/null 2>&1 && [[ -d "$dir/.git" ]]; then
+        commit="$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || true)"
+        date="$(git -C "$dir" log -1 --format='%cs' 2>/dev/null || true)"
+        printf "%s|%s\n" "${commit:-}" "${date:-}"
+        return 0
+    fi
+
+    if [[ -f "$dir/cca" ]]; then
+        # Accept either single or double quotes; ignore trailing whitespace.
+        commit="$(grep -E '^GIT_COMMIT=' "$dir/cca" 2>/dev/null | head -1 | sed -E 's/^GIT_COMMIT=//; s/[[:space:]]+$//; s/^"//; s/"$//; s/^'\''//; s/'\''$//' 2>/dev/null || true)"
+        date="$(grep -E '^GIT_DATE=' "$dir/cca" 2>/dev/null | head -1 | sed -E 's/^GIT_DATE=//; s/[[:space:]]+$//; s/^"//; s/"$//; s/^'\''//; s/'\''$//' 2>/dev/null || true)"
+    fi
+
+    printf "%s|%s\n" "${commit:-}" "${date:-}"
+}
+
+get_installed_version_string() {
+    local dir="$1"
+    local commit date
+    IFS='|' read -r commit date <<< "$(get_installed_version_info "$dir")"
+
+    if [[ -z "${commit:-}" && -z "${date:-}" ]]; then
+        printf "%s\n" "(unknown)"
+        return 0
+    fi
+
+    if [[ -n "${commit:-}" && -n "${date:-}" ]]; then
+        printf "%s %s\n" "$commit" "$date"
+        return 0
+    fi
+
+    printf "%s\n" "${commit:-${date:-}}"
+}
+
 get_remote_version_info() {
-    command -v curl >/dev/null 2>&1 || return 1
+    command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || return 1
     local api_response commit date
-    api_response="$(curl -fsSL "$CCA_REPO_API" 2>/dev/null || true)"
+    if command -v curl >/dev/null 2>&1; then
+        api_response="$(curl -fsSL "$CCA_REPO_API" 2>/dev/null || true)"
+    else
+        api_response="$(wget -q -O - "$CCA_REPO_API" 2>/dev/null || true)"
+    fi
     [[ -n "$api_response" ]] || return 1
 
     commit="$(echo "$api_response" | grep -o '"sha": "[^"]*"' | head -1 | cut -d'"' -f4 | cut -c1-7)"
@@ -616,7 +661,7 @@ cmd_version() {
     fi
 
     local commit date
-    IFS='|' read -r commit date <<< "$(get_local_version_info "$install_dir")"
+    IFS='|' read -r commit date <<< "$(get_installed_version_info "$install_dir")"
 
     local extra=""
     [[ -n "${commit:-}" ]] && extra="$commit"
@@ -754,6 +799,14 @@ cmd_update() {
             exit 1
         fi
 
+        local before_commit before_date before_version
+        IFS='|' read -r before_commit before_date <<< "$(get_installed_version_info "$install_dir")"
+        before_version="$(get_installed_version_string "$install_dir")"
+        local before_head=""
+        if command -v git >/dev/null 2>&1 && [[ -d "$install_dir/.git" ]]; then
+            before_head="$(git -C "$install_dir" rev-parse HEAD 2>/dev/null || true)"
+        fi
+
         log_blue "Updating system installation: $install_dir"
 
         if command -v git >/dev/null 2>&1 && [[ -d "$install_dir/.git" ]]; then
@@ -808,9 +861,33 @@ cmd_update() {
             )
         fi
 
+        local after_commit after_date after_version
+        IFS='|' read -r after_commit after_date <<< "$(get_installed_version_info "$install_dir")"
+        after_version="$(get_installed_version_string "$install_dir")"
+        local after_head=""
+        if command -v git >/dev/null 2>&1 && [[ -d "$install_dir/.git" ]]; then
+            after_head="$(git -C "$install_dir" rev-parse HEAD 2>/dev/null || true)"
+        fi
+
+        local version_changed=1
+        if [[ -n "${before_commit:-}" && -n "${after_commit:-}" && "$before_commit" == "$after_commit" ]]; then
+            log_info "cca already up to date ($after_version)"
+            version_changed=0
+        else
+            log_info "cca updated: ${before_version} -> ${after_version}"
+            if [[ -n "${before_head:-}" && -n "${after_head:-}" && "$before_head" != "$after_head" ]]; then
+                log_blue "Recent changes:"
+                git -C "$install_dir" log --oneline -5 "${before_head}..${after_head}" 2>/dev/null | sed 's/^/  /' || true
+            fi
+        fi
+
         CCA_SOURCE="$install_dir"
         source_root="$install_dir"
-        log_info "Updated system installation"
+        if [[ "$version_changed" -eq 1 ]]; then
+            log_info "Updated system installation"
+        else
+            log_info "System installation already up to date"
+        fi
     fi
 
     # Refresh globally visible skills/commands in ~/.claude/
