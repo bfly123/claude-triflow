@@ -165,6 +165,20 @@ CCA enforces a **separation of concerns**:
 User Request → Claude (Plan) → /file-op → Codex (Execute) → Review
 ```
 
+#### For Simple Tasks
+```bash
+# 1. Enable AutoFlow for your project
+cca add .
+
+# 2. (Optional) Customize roles in .autoflow/roles.json
+
+# 3. Refresh Claude session to load new config
+cca refresh
+
+# 4. Open ccb and start working
+ccb
+```
+
 #### Quick Start Example
 ```bash
 # 1. Start Codex in a separate pane

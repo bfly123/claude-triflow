@@ -20,7 +20,7 @@
   "reviewer": "codex",
   "documenter": "gemini",
   "designer": ["claude", "codex"],
-  "searcher": "claude",
+  "searcher": "codex",
   "git_manager": "codex",
   "plan_mode_enforced": false
 }
