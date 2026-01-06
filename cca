@@ -5,7 +5,7 @@
 set -euo pipefail
 shopt -s nullglob
 
-VERSION="1.5.0"
+VERSION="1.6.0"
 GIT_COMMIT=""
 GIT_DATE=""
 
@@ -554,7 +554,7 @@ from pathlib import Path
 
 settings_path = Path(sys.argv[1])
 hook_obj = {
-    "matcher": {"tools": [".*"]},
+    "matcher": ".*",
     "hooks": [{"type": "command", "command": "cca-roles-hook"}],
 }
 
@@ -589,16 +589,24 @@ def is_new_format_hook(entry: dict) -> bool:
             return True
     return False
 
+def matcher_to_str(matcher) -> str:
+    if isinstance(matcher, str) and matcher:
+        return matcher
+    if isinstance(matcher, dict):
+        tools = matcher.get("tools")
+        if isinstance(tools, list):
+            for t in tools:
+                if isinstance(t, str) and t:
+                    return t
+        tool = matcher.get("tool")
+        if isinstance(tool, str) and tool:
+            return tool
+    return ".*"
+
 def migrate_old_entry(entry: dict) -> dict:
     # Best-effort migration from legacy:
     # {"matcher": ".*", "commands": ["cca-roles-hook", ...]}
-    matcher = entry.get("matcher", ".*")
-    if isinstance(matcher, dict):
-        new_matcher = matcher
-    elif isinstance(matcher, str) and matcher:
-        new_matcher = {"tools": [matcher]}
-    else:
-        new_matcher = {"tools": [".*"]}
+    new_matcher = matcher_to_str(entry.get("matcher"))
 
     cmds = entry.get("commands")
     new_hooks = []
@@ -623,6 +631,14 @@ for e in pre:
 pre[:] = migrated
 
 # 2) Ensure CCA hook exists in new format (idempotent).
+for e in pre:
+    if isinstance(e, dict) and is_new_format_hook(e):
+        m = e.get("matcher")
+        m_str = matcher_to_str(m)
+        if m != m_str:
+            e["matcher"] = m_str
+            changed = True
+
 if not any(is_new_format_hook(e) for e in pre if isinstance(e, dict)):
     pre.append(hook_obj)
     changed = True
@@ -649,16 +665,29 @@ ensure_project_claude_md_policy() {
     local start="<!-- CCA_WORKFLOW_POLICY -->"
     local end="<!-- /CCA_WORKFLOW_POLICY -->"
 
-    local block
-    block="$(cat <<'MD'
+	    local block
+	    block="$(cat <<'MD'
 <!-- CCA_WORKFLOW_POLICY -->
-## CCA Default Workflow
+## CCA Workflow Policy
 
-- Claude stays in plan mode by default
-- Delegation commands (cask/gask/oask, /file-op, /review) can run in plan mode
-- All file modifications must use /file-op (delegated to executor)
-- All cross-reviews via /review
-- Roles are auto-resolved from: session > project > system > default
+### Role-Based Delegation
+| Role | Scope | Delegate |
+|------|-------|----------|
+| executor | Write/Edit, file-changing Bash | cask/oask |
+| searcher | WebSearch/WebFetch | cask/oask/gask |
+| git_manager | git add/commit/push/merge | cask/oask/gask |
+
+### Commands
+- codex: cask "task"
+- opencode: oask "task"  
+- gemini: gask "task"
+
+### Rules
+### Rules (MANDATORY)
+1. If role ≠ claude, delegate IMMEDIATELY without asking user
+2. DO NOT ask user to choose execution method - auto-delegate based on role
+3. DO NOT offer options like "委托给 Codex" or "直接执行"
+4. Allowed direct: Read, Grep, Glob, .autoflow/**, /tmp/**
 <!-- /CCA_WORKFLOW_POLICY -->
 MD
 )"
@@ -687,25 +716,37 @@ MD
         return 0
     fi
 
-    if grep -qF "$start" "$file" 2>/dev/null; then
-        # Replace existing policy block (idempotent update).
-        if python3 - "$file" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8", errors="replace")
-
-new_block = """<!-- CCA_WORKFLOW_POLICY -->
-## CCA Default Workflow
-
-- Claude stays in plan mode by default
-- Delegation commands (cask/gask/oask, /file-op, /review) can run in plan mode
-- All file modifications must use /file-op (delegated to executor)
-- All cross-reviews via /review
-- Roles are auto-resolved from: session > project > system > default
-<!-- /CCA_WORKFLOW_POLICY -->"""
+	    if grep -qF "$start" "$file" 2>/dev/null; then
+	        # Replace existing policy block (idempotent update).
+	        if python3 - "$file" <<-'PY'
+	import re
+	import sys
+	from pathlib import Path
+	
+	path = Path(sys.argv[1])
+	text = path.read_text(encoding="utf-8", errors="replace")
+	
+	new_block = """<!-- CCA_WORKFLOW_POLICY -->
+	## CCA Workflow Policy
+	
+	### Role-Based Delegation
+	| Role | Scope | Delegate |
+	|------|-------|----------|
+	| executor | Write/Edit, file-changing Bash | cask/oask |
+	| searcher | WebSearch/WebFetch | cask/oask/gask |
+	| git_manager | git add/commit/push/merge | cask/oask/gask |
+	
+	### Commands
+	- codex: cask "task"
+	- opencode: oask "task"  
+	- gemini: gask "task"
+	
+	### Rules (MANDATORY)
+	1. If role ≠ claude, delegate IMMEDIATELY without asking user
+	2. DO NOT ask user to choose execution method - auto-delegate based on role
+	3. DO NOT offer options like "委托给 Codex" or "直接执行"
+	4. Allowed direct: Read, Grep, Glob, .autoflow/**, /tmp/**
+	<!-- /CCA_WORKFLOW_POLICY -->"""
 
 pattern = re.compile(r"<!-- CCA_WORKFLOW_POLICY -->.*?<!-- /CCA_WORKFLOW_POLICY -->", re.S)
 updated, n = pattern.subn(new_block, text, count=1)
@@ -732,6 +773,39 @@ PY
         echo "$block"
     } >> "$file" || { log_warn "Failed to append policy to CLAUDE.md: $file"; return 0; }
     log_info "Injected CCA workflow policy into: $file"
+}
+
+ensure_project_agents_md() {
+    local project_root="$1"
+    local file="$project_root/AGENTS.md"
+
+    if [[ -f "$file" ]]; then
+        return 0
+    fi
+
+    if ( mkdir -p "$project_root" 2>/dev/null ) && ( touch "$file" 2>/dev/null ); then
+        :
+    else
+        log_warn "Failed to create AGENTS.md (skipping): $file"
+        return 0
+    fi
+
+    if [[ ! -w "$file" ]]; then
+        log_warn "AGENTS.md not writable (skipping): $file"
+        return 0
+    fi
+
+    cat > "$file" <<'MD'
+## Auto-Delegation to OpenCode
+
+When executor=codex+opencode:
+1. Break down the task into steps
+2. Use oask to delegate to OpenCode
+3. Review results and iterate
+4. Return final result
+MD
+
+    log_info "Created project AGENTS.md: $file"
 }
 
 # Command: version
@@ -812,6 +886,7 @@ cmd_add() {
             ensure_hook_installed || true
             ensure_claude_settings_hook "$target" || true
             ensure_project_claude_md_policy "$target" || true
+            ensure_project_agents_md "$target" || true
             ;;
         *)
             # Resolve path
@@ -829,11 +904,153 @@ cmd_add() {
             ensure_hook_installed || true
             ensure_claude_settings_hook "$target" || true
             ensure_project_claude_md_policy "$target" || true
+            ensure_project_agents_md "$target" || true
             ;;
     esac
 
     echo ""
     log_info "Done! AutoFlow is available globally in ~/.claude/ (run ./install.sh install if needed)."
+}
+
+# Command: refresh
+cmd_refresh() {
+    local target="${1:-.}"
+
+    case "$target" in
+        ".") target="$(pwd)" ;;
+        *)
+            if [[ "$target" != /* ]]; then
+                target="$(pwd)/$target"
+            fi
+            target="$(cd "$target" 2>/dev/null && pwd)" || {
+                log_error "Directory not found: $target"
+                exit 1
+            }
+            ;;
+    esac
+
+    python3 - "$target" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+project_root = Path(sys.argv[1])
+roles_path = project_root / ".autoflow" / "roles.json"
+claude_md = project_root / "CLAUDE.md"
+agents_md = project_root / "AGENTS.md"
+
+DEFAULT = {
+    "schemaVersion": 1,
+    "enabled": True,
+    "executor": "codex",
+    "searcher": "claude",
+    "git_manager": "codex",
+}
+
+def read_roles() -> dict:
+    if not roles_path.exists():
+        return DEFAULT
+    try:
+        obj = json.loads(roles_path.read_text(encoding="utf-8"))
+        if not isinstance(obj, dict):
+            return DEFAULT
+        if int(obj.get("schemaVersion", 0)) != 1:
+            return DEFAULT
+        if obj.get("enabled", True) is not True:
+            return DEFAULT
+        return {**DEFAULT, **obj}
+    except Exception:
+        return DEFAULT
+
+def delegate_hint(role_value: str) -> str:
+    v = (role_value or "").strip().lower()
+    if v == "claude":
+        return "direct"
+    if v in {"codex", "codex+opencode"}:
+        return 'cask "task"'
+    if v == "opencode":
+        return 'oask "task"'
+    if v == "gemini":
+        return 'gask "task"'
+    return 'cask "task"'
+
+roles = read_roles()
+executor = str(roles.get("executor", DEFAULT["executor"]))
+searcher = str(roles.get("searcher", DEFAULT["searcher"]))
+git_manager = str(roles.get("git_manager", DEFAULT["git_manager"]))
+
+lines: list[str] = []
+lines.append("<!-- CCA_WORKFLOW_POLICY -->")
+lines.append("## CCA Workflow Policy")
+lines.append("")
+lines.append("### Current Roles")
+lines.append(f"- executor: {executor} ({'direct' if delegate_hint(executor)=='direct' else 'delegate'})")
+lines.append(f"- searcher: {searcher} ({'direct' if delegate_hint(searcher)=='direct' else 'delegate'})")
+lines.append(f"- git_manager: {git_manager} ({'direct' if delegate_hint(git_manager)=='direct' else 'delegate'})")
+lines.append("")
+lines.append("### Delegation Rules")
+lines.append(f"- executor: {('can execute directly' if delegate_hint(executor)=='direct' else 'use ' + delegate_hint(executor))}")
+lines.append(f"- searcher: {('can search directly' if delegate_hint(searcher)=='direct' else 'use ' + delegate_hint(searcher))}")
+lines.append(f"- git_manager: {('can run git changes directly' if delegate_hint(git_manager)=='direct' else 'use ' + delegate_hint(git_manager))}")
+lines.append("")
+lines.append("### Allowed Direct Operations (when role=claude)")
+lines.append("- Read/Grep/Glob")
+lines.append("- Write to ~/.claude/plans/**, /tmp/**, .autoflow/**")
+lines.append("<!-- /CCA_WORKFLOW_POLICY -->")
+policy_block = "\n".join(lines) + "\n"
+
+def upsert_policy(path: Path, block: str) -> None:
+    if not path.exists():
+        path.write_text(block, encoding="utf-8")
+        return
+    text = path.read_text(encoding="utf-8", errors="replace")
+    pattern = re.compile(r"<!-- CCA_WORKFLOW_POLICY -->.*?<!-- /CCA_WORKFLOW_POLICY -->", re.S)
+    if pattern.search(text):
+        updated = pattern.sub(block.strip("\n"), text, count=1)
+        if not updated.endswith("\n"):
+            updated += "\n"
+        path.write_text(updated, encoding="utf-8")
+    else:
+        if not text.endswith("\n"):
+            text += "\n"
+        path.write_text(text + "\n" + block, encoding="utf-8")
+
+upsert_policy(claude_md, policy_block)
+
+need_agents = "opencode" in (executor or "").lower()
+if need_agents:
+    agents_md.write_text(
+        "## Auto-Delegation to OpenCode\n\n"
+        "When executor=codex+opencode:\n"
+        "1. Break down the task into steps\n"
+        "2. Use oask to delegate to OpenCode\n"
+        "3. Review results and iterate\n"
+        "4. Return final result\n",
+        encoding="utf-8",
+    )
+PY
+
+    log_info "Refreshed: $target/CLAUDE.md"
+    local roles_file="$target/.autoflow/roles.json"
+    if [[ -f "$roles_file" ]]; then
+        local executor
+        executor="$(python3 - "$roles_file" <<'PY'
+import json,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+try:
+    obj=json.loads(p.read_text(encoding="utf-8"))
+    if isinstance(obj, dict):
+        print(obj.get("executor",""))
+except Exception:
+    pass
+PY
+)"
+        if [[ "${executor,,}" == *"opencode"* ]]; then
+            log_info "Refreshed: $target/AGENTS.md"
+        fi
+    fi
 }
 
 # Command: delete
@@ -1138,6 +1355,9 @@ cmd_uninstall() {
 case "${1:-}" in
     add)
         cmd_add "$2"
+        ;;
+    refresh)
+        cmd_refresh "${2:-.}"
         ;;
     delete|remove|rm)
         cmd_delete "$2"

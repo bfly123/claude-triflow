@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Automated_Collaboration-CF1322?style=for-the-badge" alt="Automated Collaboration">
 </p>
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -45,45 +45,6 @@ WezTerm  →  ccb (Claude Code Bridge)  →  cca (Claude Code AutoFlow)
 | **Auto Execution** | Autoloop daemon triggers `/tr` automatically after planning |
 | **State Management** | `state.json` as Single Source of Truth |
 | **Context Awareness** | Auto `/clear` when context usage exceeds threshold |
-
-## 🎭 Role Configuration
-
-CCA supports flexible role assignment for different workflow stages. This routing can be used both in AutoFlow workflows (`/tp`, `/tr`) and in lightweight day-to-day tasks when you delegate work via skills (e.g. `/file-op`, `/review`, `/roles`).
-
-### Configuration Locations
-- **Session Level** (Overrides all): `<project_root>/.autoflow/roles.session.json`
-- **Project Level**: `<project_root>/.autoflow/roles.json`
-- **System Level**: `~/.config/cca/roles.json`
-
-Priority: session > project > system > defaults.
-
-### Supported Roles
-- **executor**: Executes code changes (e.g., `codex`, `opencode`)
-- **reviewer**: Reviews code and logic (e.g., `codex`, `gemini`)
-- **documenter**: Generates documentation (e.g., `codex`, `gemini`)
-- **designer**: Participates in the dual-design phase (e.g., `["claude", "codex"]`)
-
-### Manage Roles (Lightweight)
-Use `/roles` to manage roles without starting a full `/tp`/`tr` workflow:
-
-```bash
-/roles show
-/roles set executor=opencode reviewer=gemini
-/roles clear
-/roles init
-```
-
-### Example Configuration
-```json
-{
-  "schemaVersion": 1,
-  "enabled": true,
-  "executor": "opencode",
-  "reviewer": "gemini",
-  "documenter": "gemini",
-  "designer": ["claude", "codex"]
-}
-```
 
 ## 🚀 Installation
 
@@ -223,6 +184,38 @@ cca add .
 # Creates plan with dual-design → autoloop triggers execution
 ```
 
+## 🎭 Role Configuration
+
+Role configuration controls which model/tool is used for each workflow role.
+
+### Configuration Files
+- Project: `<repo>/.autoflow/roles.json`
+- System: `~/.autoflow/roles.json`
+
+Priority: project > system > defaults.
+
+### Roles and Allowed Values
+Allowed values are defined in `_meta.allowedValues` (see `claude_source/templates/roles.json`):
+- `executor`: `codex`, `opencode`, `codex+opencode`
+- `reviewer`: `codex`, `gemini`
+- `documenter`: `codex`, `gemini`
+- `designer`: `claude`, `codex`, `gemini` (use a list, e.g. `["claude","codex"]`)
+- `searcher`: `claude`, `codex`, `gemini`, `opencode`
+- `git_manager`: `claude`, `codex`, `opencode`, `gemini`
+- `plan_mode_enforced`: `true`/`false` (default: false) - Block ExitPlanMode when true
+
+### Example
+```json
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "executor": "opencode",
+  "reviewer": "gemini",
+  "documenter": "gemini",
+  "designer": ["claude", "codex"]
+}
+```
+
 ## 📄 License
 
 [AGPL-3.0](LICENSE)
@@ -231,6 +224,13 @@ cca add .
 
 <details>
 <summary>📜 Version History</summary>
+
+### v1.6.0
+- Add role-based tool interception (executor, searcher, git_manager)
+- Add plan_mode_enforced config
+- Add cca refresh command for dynamic guide generation
+- Add codex+opencode combo executor mode
+- Fix cask/oask/gask delegation whitelist
 
 ### v1.5.0
 - Fix hooks format for Claude Code new API
