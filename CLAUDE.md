@@ -72,17 +72,21 @@ Commands: `/tp [requirement]` (plan), `/tr` (run)
 - Delegate to appropriate executor (cask/oask/gask)
 - NEVER execute file modifications directly
 
-### Current Roles
-- executor: codex (delegate)
-- searcher: claude (direct)
-- git_manager: codex (delegate)
+### Role-Based Delegation
+| Role | Scope | Delegate |
+|------|-------|----------|
+| executor | Write/Edit, file-changing Bash | cask/oask |
+| searcher | WebSearch/WebFetch | cask/oask/gask |
+| git_manager | git add/commit/push/merge | cask/oask/gask |
 
-### Delegation Rules
-- executor: use cask "task"
-- searcher: can search directly
-- git_manager: use cask "task"
+### Commands
+- codex: cask "task"
+- opencode: oask "task"  
+- gemini: gask "task"
 
-### Allowed Direct Operations (when role=claude)
-- Read/Grep/Glob
-- Write to ~/.claude/plans/**, /tmp/**, .autoflow/**
+### Rules (MANDATORY)
+1. If role ≠ claude, delegate IMMEDIATELY without asking user
+2. DO NOT ask user to choose execution method - auto-delegate based on role
+3. DO NOT offer options like "委托给 Codex" or "直接执行"
+4. Allowed direct: Read, Grep, Glob, .autoflow/**, /tmp/**
 <!-- /CCA_WORKFLOW_POLICY -->

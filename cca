@@ -5,7 +5,7 @@
 set -euo pipefail
 shopt -s nullglob
 
-VERSION="1.6.0"
+VERSION="1.7.0"
 GIT_COMMIT=""
 GIT_DATE=""
 
@@ -822,6 +822,244 @@ MD
     log_info "Created project AGENTS.md: $file"
 }
 
+batch_update_projects() {
+    local -a projects=("$@")
+    if [[ ${#projects[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    python3 - "${projects[@]}" <<'PY'
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+HOOK_OBJ = {
+    "matcher": ".*",
+    "hooks": [{"type": "command", "command": "cca-roles-hook"}],
+}
+
+POLICY_BLOCK = """<!-- CCA_WORKFLOW_POLICY -->
+## CCA Workflow Policy
+
+### Claude's Role (CRITICAL)
+**Claude is the MANAGER, not the executor.**
+- Plan and coordinate tasks
+- Check role assignments before ANY action
+- Delegate to appropriate executor (cask/oask/gask)
+- NEVER execute file modifications directly
+
+### Role-Based Delegation
+| Role | Scope | Delegate |
+|------|-------|----------|
+| executor | Write/Edit, file-changing Bash | cask/oask |
+| searcher | WebSearch/WebFetch | cask/oask/gask |
+| git_manager | git add/commit/push/merge | cask/oask/gask |
+
+### Commands
+- codex: cask "task"
+- opencode: oask "task"  
+- gemini: gask "task"
+
+### Rules
+### Rules (MANDATORY)
+1. If role ≠ claude, delegate IMMEDIATELY without asking user
+2. DO NOT ask user to choose execution method - auto-delegate based on role
+3. DO NOT offer options like "委托给 Codex" or "直接执行"
+4. Allowed direct: Read, Grep, Glob, .autoflow/**, /tmp/**
+<!-- /CCA_WORKFLOW_POLICY -->"""
+
+POLICY_REPLACE = """<!-- CCA_WORKFLOW_POLICY -->
+## CCA Workflow Policy
+
+### Claude's Role (CRITICAL)
+**Claude is the MANAGER, not the executor.**
+- Plan and coordinate tasks
+- Check role assignments before ANY action
+- Delegate to appropriate executor (cask/oask/gask)
+- NEVER execute file modifications directly
+
+### Role-Based Delegation
+| Role | Scope | Delegate |
+|------|-------|----------|
+| executor | Write/Edit, file-changing Bash | cask/oask |
+| searcher | WebSearch/WebFetch | cask/oask/gask |
+| git_manager | git add/commit/push/merge | cask/oask/gask |
+
+### Commands
+- codex: cask "task"
+- opencode: oask "task"  
+- gemini: gask "task"
+
+### Rules (MANDATORY)
+1. If role ≠ claude, delegate IMMEDIATELY without asking user
+2. DO NOT ask user to choose execution method - auto-delegate based on role
+3. DO NOT offer options like "委托给 Codex" or "直接执行"
+4. Allowed direct: Read, Grep, Glob, .autoflow/**, /tmp/**
+<!-- /CCA_WORKFLOW_POLICY -->"""
+
+
+def is_new_format_hook(entry: dict) -> bool:
+    hs = entry.get("hooks")
+    if not isinstance(hs, list):
+        return False
+    for h in hs:
+        if not isinstance(h, dict):
+            continue
+        if h.get("type") == "command" and h.get("command") == "cca-roles-hook":
+            return True
+    return False
+
+
+def matcher_to_str(matcher) -> str:
+    if isinstance(matcher, str) and matcher:
+        return matcher
+    if isinstance(matcher, dict):
+        tools = matcher.get("tools")
+        if isinstance(tools, list):
+            for t in tools:
+                if isinstance(t, str) and t:
+                    return t
+        tool = matcher.get("tool")
+        if isinstance(tool, str) and tool:
+            return tool
+    return ".*"
+
+
+def migrate_old_entry(entry: dict) -> dict:
+    new_matcher = matcher_to_str(entry.get("matcher"))
+    cmds = entry.get("commands")
+    new_hooks = []
+    if isinstance(cmds, list):
+        for c in cmds:
+            if isinstance(c, str) and c:
+                new_hooks.append({"type": "command", "command": c})
+    else:
+        new_hooks.append({"type": "command", "command": "cca-roles-hook"})
+    return {"matcher": new_matcher, "hooks": new_hooks}
+
+
+def update_settings(project_root: Path) -> None:
+    claude_dir = project_root / ".claude"
+    settings_path = claude_dir / "settings.json"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+
+    data = {}
+    if settings_path.exists():
+        try:
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("settings.json is not an object")
+        except Exception:
+            sys.stderr.write(f"[cca] Invalid JSON (skipping): {settings_path}\n")
+            return
+
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        hooks = {}
+        data["hooks"] = hooks
+
+    pre = hooks.get("PreToolUse")
+    if not isinstance(pre, list):
+        pre = []
+        hooks["PreToolUse"] = pre
+
+    migrated = []
+    changed = False
+    for e in pre:
+        if isinstance(e, dict) and "commands" in e:
+            migrated.append(migrate_old_entry(e))
+            changed = True
+        else:
+            migrated.append(e)
+    pre[:] = migrated
+
+    for e in pre:
+        if isinstance(e, dict) and is_new_format_hook(e):
+            m = e.get("matcher")
+            m_str = matcher_to_str(m)
+            if m != m_str:
+                e["matcher"] = m_str
+                changed = True
+
+    if not any(is_new_format_hook(e) for e in pre if isinstance(e, dict)):
+        pre.append(HOOK_OBJ)
+        changed = True
+
+    if changed or not settings_path.exists():
+        try:
+            settings_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception as e:
+            sys.stderr.write(f"[cca] Failed to update .claude/settings.json: {settings_path} ({e})\n")
+
+
+def update_claude_md(project_root: Path) -> None:
+    file_path = project_root / "CLAUDE.md"
+    start = "<!-- CCA_WORKFLOW_POLICY -->"
+
+    if not file_path.exists():
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(POLICY_BLOCK + "\n", encoding="utf-8")
+        except Exception as e:
+            sys.stderr.write(f"[cca] Failed to create CLAUDE.md (skipping policy): {file_path} ({e})\n")
+        return
+
+    if not os.access(file_path, os.W_OK):
+        sys.stderr.write(f"[cca] CLAUDE.md not writable (skipping policy update): {file_path}\n")
+        return
+
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        sys.stderr.write(f"[cca] Failed to read CLAUDE.md: {file_path} ({e})\n")
+        return
+
+    if start in text:
+        pattern = re.compile(r"<!-- CCA_WORKFLOW_POLICY -->.*?<!-- /CCA_WORKFLOW_POLICY -->", re.S)
+        updated, n = pattern.subn(POLICY_REPLACE, text, count=1)
+        if n == 0:
+            sys.stderr.write(f"[cca] Failed to update CCA workflow policy (parse error): {file_path}\n")
+            return
+        if updated != text:
+            if not updated.endswith("\n"):
+                updated += "\n"
+            try:
+                file_path.write_text(updated, encoding="utf-8")
+            except Exception as e:
+                sys.stderr.write(f"[cca] Failed to write CLAUDE.md: {file_path} ({e})\n")
+        return
+
+    try:
+        appended = text
+        if appended and not appended.endswith("\n"):
+            appended += "\n"
+        appended += "\n" + POLICY_BLOCK + "\n"
+        file_path.write_text(appended, encoding="utf-8")
+    except Exception as e:
+        sys.stderr.write(f"[cca] Failed to append policy to CLAUDE.md: {file_path} ({e})\n")
+
+
+def main(paths: list[str]) -> int:
+    for p in paths:
+        if not p:
+            continue
+        root = Path(p)
+        try:
+            update_settings(root)
+            update_claude_md(root)
+            sys.stdout.write(f"OK:{p}\n")
+        except Exception as e:
+            sys.stderr.write(f"[cca] Batch update failed for {p}: {e}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
+PY
+}
+
 # Command: version
 cmd_version() {
     local install_dir=""
@@ -1279,6 +1517,7 @@ cmd_update() {
     done < "$INSTALLATIONS_FILE" 2>/dev/null || true
 
     local count=0
+    local -a _valid_projects=()
     for line in "${_install_lines[@]+"${_install_lines[@]}"}"; do
         [[ -z "${line//[[:space:]]/}" ]] && continue
         IFS='|' read -r path type date <<< "$line"
@@ -1286,14 +1525,18 @@ cmd_update() {
         if [[ -d "$path" ]]; then
             log_blue "Refreshing project config: $path"
             do_install "$path" "${type:-project}" "${date:-}"
-            ensure_claude_settings_hook "$path" || true
-            ensure_project_claude_md_policy "$path" || true
+            _valid_projects+=("$path")
             ((count+=1))
         else
             log_warn "Skipping (not found): $path"
             remove_installation "$path"
         fi
     done
+
+    if [[ ${#_valid_projects[@]} -gt 0 ]]; then
+        log_blue "Batch updating .claude/settings.json + CLAUDE.md for ${#_valid_projects[@]} project(s)..."
+        batch_update_projects "${_valid_projects[@]}" || true
+    fi
 
     echo ""
     log_info "Updated $count project(s)"
