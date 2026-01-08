@@ -105,11 +105,70 @@ cd claude_code_bridge
 ```
 
 ### 3. 安装 cca (AutoFlow)
+
+**Linux/macOS:**
 ```bash
-git clone https://github.com/bfly123/claude-autoflow.git
-cd claude-autoflow
+git clone https://github.com/bfly123/claude_code_autoflow.git
+cd claude_code_autoflow
 ./install.sh install
 ```
+
+**Windows:**
+
+**方法 1：自动安装（推荐）**
+
+1. 克隆仓库：
+   ```powershell
+   git clone https://github.com/bfly123/claude_code_autoflow.git
+   cd claude_code_autoflow
+   ```
+
+2. 运行安装脚本：
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install.ps1 install
+   ```
+
+   或者直接运行：
+   ```powershell
+   .\install.ps1 install
+   ```
+
+3. 重启终端或刷新 PATH：
+   ```powershell
+   $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User")
+   ```
+
+4. 验证安装：
+   ```powershell
+   cca --version
+   ```
+
+**方法 2：手动安装**
+
+1. 将 `cca.ps1` 复制到 PATH 中的目录：
+   ```powershell
+   Copy-Item cca.ps1 $env:LOCALAPPDATA\Microsoft\WindowsApps\cca.ps1
+   ```
+
+2. 手动安装 skills 和 commands 到 `~\.claude\`
+
+**卸载**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 uninstall
+```
+
+**故障排除**
+
+- 如果遇到"执行策略"错误，运行：
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+
+- 如果安装后找不到 `cca` 命令，重启终端或手动刷新 PATH：
+  ```powershell
+  $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
+  ```
 
 ## 📖 使用指南
 
