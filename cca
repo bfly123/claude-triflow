@@ -398,82 +398,6 @@ check_source_dir() {
     done
 }
 
-install_global_skills() {
-    local source_root="$1"
-    check_source_dir "$source_root"
-
-    local target="$HOME/.claude"
-    mkdir -p "$target/skills" "$target/commands"
-
-    for skill in "${AUTOFLOW_SKILLS[@]}"; do
-        rm -rf "$target/skills/$skill" 2>/dev/null || true
-        cp -a "$source_root/claude_source/skills/$skill" "$target/skills/"
-    done
-
-    # Commands: strict mirror for cca-managed commands without touching user custom commands.
-    local owned="$target/commands/.cca-owned"
-    if [[ -f "$owned" ]]; then
-        while IFS= read -r name; do
-            [[ -z "${name//[[:space:]]/}" ]] && continue
-            rm -f "$target/commands/$name" 2>/dev/null || true
-        done < "$owned"
-    else
-        # Bootstrap cleanup: remove previously installed AutoFlow command wrappers (best effort).
-        # Matches files that reference known ~/.claude/skills/<skill>/ paths.
-        for f in "$target/commands"/*.md; do
-            [[ -f "$f" ]] || continue
-            if grep -qF '~/.claude/skills/' "$f" 2>/dev/null; then
-                if grep -Eq '~/.claude/skills/(tr|tp|dual-design|file-op|ask-codex|ask-gemini|roles|review|mode-switch|docs)/' "$f" 2>/dev/null; then
-                    rm -f "$f" 2>/dev/null || true
-                fi
-            fi
-        done
-    fi
-
-    : > "$owned" 2>/dev/null || true
-    for cmd in "${AUTOFLOW_COMMANDS[@]}"; do
-        if [[ -f "$source_root/claude_source/commands/$cmd" ]]; then
-            cp -a "$source_root/claude_source/commands/$cmd" "$target/commands/"
-            printf "%s\n" "$cmd" >> "$owned" 2>/dev/null || true
-        else
-            log_warn "Missing command in source (skipping): $source_root/claude_source/commands/$cmd"
-        fi
-    done
-
-    log_info "Installed skills/commands to ~/.claude/ (globally visible)"
-}
-
-remove_global_skills() {
-    local target="$HOME/.claude"
-    local skills_dir="$target/skills"
-    local commands_dir="$target/commands"
-
-    # Skills
-    for skill in "${AUTOFLOW_SKILLS[@]}"; do
-        rm -rf "$skills_dir/$skill" 2>/dev/null || true
-    done
-
-    # Commands
-    local owned="$commands_dir/.cca-owned"
-    if [[ -f "$owned" ]]; then
-        while IFS= read -r name; do
-            [[ -z "${name//[[:space:]]/}" ]] && continue
-            rm -f "$commands_dir/$name" 2>/dev/null || true
-        done < "$owned"
-        rm -f "$owned" 2>/dev/null || true
-    else
-        # Best-effort cleanup for older installs (no ownership marker).
-        for f in "$commands_dir"/*.md; do
-            [[ -f "$f" ]] || continue
-            if grep -qF '~/.claude/skills/' "$f" 2>/dev/null; then
-                if grep -Eq '~/.claude/skills/(tr|tp|dual-design|file-op|ask-codex|ask-gemini|roles|review|mode-switch|docs)/' "$f" 2>/dev/null; then
-                    rm -f "$f" 2>/dev/null || true
-                fi
-            fi
-        done
-    fi
-}
-
 detect_legacy_global() {
     local target="$HOME/.claude"
     local skills_dir="$target/skills"
@@ -529,42 +453,6 @@ cleanup_legacy_global() {
     fi
 
     log_info "Cleaned legacy global AutoFlow config (~/.claude, ~/.config/cca)"
-}
-
-ensure_system_roles_config() {
-    local roles_cfg="$CCA_HOME/roles.json"
-    if [[ -f "$roles_cfg" ]]; then
-        return 0
-    fi
-    cat > "$roles_cfg" <<'JSON'
-{
-  "schemaVersion": 1,
-  "enabled": true,
-  "executor": "codex",
-  "reviewer": "codex",
-  "documenter": "codex",
-  "designer": ["claude", "codex"]
-}
-JSON
-    log_info "Created system roles config: $roles_cfg"
-}
-
-remove_system_roles_config() {
-    local roles_cfg="$CCA_HOME/roles.json"
-    if [[ ! -f "$roles_cfg" ]]; then
-        return 0
-    fi
-
-    local backup_dir="$CCA_HOME/backup"
-    mkdir -p "$backup_dir" 2>/dev/null || true
-    local ts
-    ts="$(date +%Y%m%d%H%M%S 2>/dev/null || echo now)"
-    if mv -f "$roles_cfg" "$backup_dir/roles.json.$ts" 2>/dev/null; then
-        log_info "Removed system roles config (backed up): $backup_dir/roles.json.$ts"
-    else
-        rm -f "$roles_cfg" 2>/dev/null || true
-        log_info "Removed system roles config: $roles_cfg"
-    fi
 }
 
 ensure_project_roles_config() {

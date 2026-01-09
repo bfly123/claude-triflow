@@ -10,8 +10,7 @@ Hard requirements:
 Roles priority:
 1) .autoflow/roles.session.json
 2) .autoflow/roles.json
-3) ~/.config/cca/roles.json (or $XDG_CONFIG_HOME/cca/roles.json)
-4) defaults
+3) defaults
 
 Tool blocking:
 - If Claude Code invokes Write/Edit, block and instruct delegation based on executor.
@@ -44,13 +43,6 @@ DEFAULT_ROLES: dict[str, Any] = {
 
 def _find_repo_root(start: Path) -> Path:
     return start.resolve()
-
-
-def _config_home() -> Path:
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    if xdg:
-        return Path(xdg).expanduser()
-    return Path.home() / ".config"
 
 
 def _try_read_json(path: Path) -> Optional[dict[str, Any]]:
