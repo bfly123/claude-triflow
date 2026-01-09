@@ -261,9 +261,10 @@ function Read-Installations {
 }
 
 function Write-Installations {
-    param([Parameter(Mandatory = $true)][object[]]$Records)
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Records)
     $normalized = @($Records | Select-Object Path, Type, InstallDate)
     $lines = $normalized | ConvertTo-Csv -NoTypeInformation
+    if (-not $lines -or $lines.Count -eq 0) { $lines = @('Path,Type,InstallDate') }
     Write-AllLinesUtf8NoBom -Path $INSTALLATIONS_FILE -Lines $lines
 }
 
@@ -668,14 +669,25 @@ function Ensure-HookInstalled {
     }
     try { New-Item -ItemType Directory -Path $binDir -Force | Out-Null } catch { }
 
+    $copyNeeded = $true
     try {
-        Copy-Item -LiteralPath $srcPs1 -Destination $dstPs1 -Force
+        if ((Test-Path -LiteralPath $dstPs1) -and ((Resolve-Path -LiteralPath $srcPs1).ProviderPath -eq (Resolve-Path -LiteralPath $dstPs1).ProviderPath)) {
+            $copyNeeded = $false
+        }
+    } catch { }
+
+    try {
+        if ($copyNeeded) {
+            Copy-Item -LiteralPath $srcPs1 -Destination $dstPs1 -Force
+        } else {
+            Write-Info ("Hook script already present: {0}" -f $dstPs1)
+        }
         $cmd = "@echo off`r`n" +
                "powershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0cca-roles-hook.ps1`" %*`r`n"
         Write-AllTextUtf8NoBom -Path $dstCmd -Text $cmd
         Write-Info ("Installed hook: {0}" -f $dstCmd)
     } catch {
-        Write-Warn ("Failed to install hook to: {0}" -f $binDir)
+        Write-Warn ("Failed to install hook to: {0} ({1})" -f $binDir, $_.Exception.Message)
     }
 }
 
@@ -685,32 +697,185 @@ function Ensure-ClaudeSettingsHook {
     $settingsPath = Join-PathSafe $claudeDir 'settings.json'
     try { New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null } catch { }
 
-    $hookObj = @{ matcher = '.*'; commands = @('cca-roles-hook') }
+    $hookCommand = 'cca-roles-hook'
     $data = @{}
     if (Test-Path -LiteralPath $settingsPath) {
         try {
             $raw = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
             $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
-            if ($parsed) { $data = $parsed }
+            if ($parsed -and ($parsed -is [System.Collections.IDictionary] -or $parsed -is [PSCustomObject])) {
+                $data = $parsed
+            } else {
+                throw 'settings.json must be a JSON object'
+            }
         } catch {
             Write-Warn ("Invalid JSON (skipping): {0}" -f $settingsPath)
             return
         }
     }
-    if (-not $data.hooks) { $data | Add-Member -NotePropertyName hooks -NotePropertyValue (@{}) -Force }
-    if (-not $data.hooks.PreToolUse) { $data.hooks.PreToolUse = @() }
 
-    $exists = $false
-    foreach ($e in $data.hooks.PreToolUse) {
+    $getProp = {
+        param($Obj, [string]$Name)
+        if ($null -eq $Obj -or -not $Name) { return $null }
+        if ($Obj -is [System.Collections.IDictionary]) {
+            try {
+                if ($Obj.Contains($Name)) { return $Obj[$Name] }
+            } catch {
+                try {
+                    if ($Obj.ContainsKey($Name)) { return $Obj[$Name] }
+                } catch { }
+            }
+            return $null
+        }
         try {
-            if ($e.commands -and ($e.commands -contains 'cca-roles-hook')) { $exists = $true; break }
+            $prop = $Obj.PSObject.Properties[$Name]
+            if ($prop) { return $prop.Value }
         } catch { }
+        return $null
     }
-    if (-not $exists) { $data.hooks.PreToolUse += $hookObj }
+
+    $setProp = {
+        param($Obj, [string]$Name, $Value)
+        if ($null -eq $Obj -or -not $Name) { return }
+        if ($Obj -is [System.Collections.IDictionary]) {
+            $Obj[$Name] = $Value
+            return
+        }
+        try {
+            $Obj | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+        } catch {
+            try { $Obj.$Name = $Value } catch { }
+        }
+    }
+
+    $hasProp = {
+        param($Obj, [string]$Name)
+        if ($null -eq $Obj -or -not $Name) { return $false }
+        if ($Obj -is [System.Collections.IDictionary]) {
+            try { if ($Obj.Contains($Name)) { return $true } } catch {
+                try { if ($Obj.ContainsKey($Name)) { return $true } } catch { }
+            }
+            return $false
+        }
+        try {
+            $prop = $Obj.PSObject.Properties[$Name]
+            return $null -ne $prop
+        } catch { return $false }
+    }
+
+    $matcherToString = {
+        param($Matcher)
+        if ($Matcher -is [string] -and $Matcher.Trim()) { return $Matcher.Trim() }
+        $tools = & $getProp $Matcher 'tools'
+        if ($tools -is [System.Collections.IEnumerable]) {
+            foreach ($t in $tools) {
+                if ($t -is [string] -and $t.Trim()) { return $t.Trim() }
+            }
+        }
+        $tool = & $getProp $Matcher 'tool'
+        if ($tool -is [string] -and $tool.Trim()) { return $tool.Trim() }
+        return '.*'
+    }
+
+    $migrateLegacy = {
+        param($Entry)
+        $matcherValue = & $matcherToString (& $getProp $Entry 'matcher')
+        $cmds = & $getProp $Entry 'commands'
+        $hooksArr = New-Object System.Collections.ArrayList
+        if ($cmds -is [System.Collections.IEnumerable]) {
+            foreach ($cmd in $cmds) {
+                if ($cmd -is [string] -and $cmd.Trim()) {
+                    [void]$hooksArr.Add([ordered]@{ type = 'command'; command = $cmd.Trim() })
+                }
+            }
+        }
+        if ($hooksArr.Count -eq 0) {
+            [void]$hooksArr.Add([ordered]@{ type = 'command'; command = $hookCommand })
+        }
+        $entryObj = [ordered]@{
+            matcher = $matcherValue
+            hooks   = $hooksArr
+        }
+        return $entryObj
+    }
+
+    $containsHook = {
+        param($Entry)
+        $hooks = & $getProp $Entry 'hooks'
+        if (-not $hooks) { return $false }
+        foreach ($h in $hooks) {
+            $cmd = & $getProp $h 'command'
+            $type = & $getProp $h 'type'
+            if ([string]::Equals($type, 'command', [System.StringComparison]::OrdinalIgnoreCase) -and
+                [string]::Equals($cmd, $hookCommand, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $true
+            }
+        }
+        return $false
+    }
+
+    $changed = $false
+    $hooksContainer = & $getProp $data 'hooks'
+    if (-not ($hooksContainer -is [System.Collections.IDictionary] -or $hooksContainer -is [PSCustomObject])) {
+        $hooksContainer = @{}
+        & $setProp $data 'hooks' $hooksContainer
+        $changed = $true
+    }
+
+    $preHooks = & $getProp $hooksContainer 'PreToolUse'
+    $preList = $null
+    if ($preHooks -is [System.Collections.ArrayList]) {
+        $preList = $preHooks
+    } elseif ($preHooks -is [System.Collections.IEnumerable]) {
+        $preList = New-Object System.Collections.ArrayList
+        foreach ($item in $preHooks) { [void]$preList.Add($item) }
+    } else {
+        $preList = New-Object System.Collections.ArrayList
+    }
+    if ($preHooks -ne $preList) {
+        & $setProp $hooksContainer 'PreToolUse' $preList
+        if (-not $preHooks) { $changed = $true }
+    }
+
+    $hookExists = $false
+    for ($i = 0; $i -lt $preList.Count; $i++) {
+        $entry = $preList[$i]
+        $isObject = $entry -is [System.Collections.IDictionary] -or $entry -is [PSCustomObject]
+        if (-not $isObject) { continue }
+
+        if (& $hasProp $entry 'commands') {
+            $preList[$i] = & $migrateLegacy $entry
+            $entry = $preList[$i]
+            $changed = $true
+        }
+
+        if (& $containsHook $entry) {
+            $hookExists = $true
+            $matcherValue = & $getProp $entry 'matcher'
+            $normalizedMatcher = & $matcherToString $matcherValue
+            if ($normalizedMatcher -ne $matcherValue) {
+                & $setProp $entry 'matcher' $normalizedMatcher
+                $changed = $true
+            }
+        }
+    }
+
+    if (-not $hookExists) {
+        $newEntry = [ordered]@{
+            matcher = '.*'
+            hooks   = @(
+                [ordered]@{ type = 'command'; command = $hookCommand }
+            )
+        }
+        [void]$preList.Add($newEntry)
+        $changed = $true
+    }
 
     try {
-        $json = $data | ConvertTo-Json -Depth 16
-        Write-AllTextUtf8NoBom -Path $settingsPath -Text ($json + "`n")
+        if ($changed -or -not (Test-Path -LiteralPath $settingsPath)) {
+            $json = $data | ConvertTo-Json -Depth 32
+            Write-AllTextUtf8NoBom -Path $settingsPath -Text ($json + "`n")
+        }
         Write-Info ("Configured PreToolUse hook: {0}" -f $settingsPath)
     } catch {
         Write-Warn ("Failed to update .claude/settings.json: {0}" -f $settingsPath)

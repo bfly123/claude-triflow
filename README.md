@@ -81,22 +81,60 @@ cd claude_code_autoflow
 
 ### Windows (PowerShell)
 
-**Prerequisites**: PowerShell 5.1+ (Windows 10+)
+**Method 1: Automated Installation (Recommended)**
 
-**Installation**:
+1. Clone the repository:
+   ```powershell
+   git clone https://github.com/bfly123/claude_code_autoflow.git
+   cd claude_code_autoflow
+   ```
+
+2. Run the installation script:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install.ps1 install
+   ```
+
+   Or simply:
+   ```powershell
+   .\install.ps1 install
+   ```
+
+3. Restart your terminal or refresh PATH:
+   ```powershell
+   $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User")
+   ```
+
+4. Verify installation:
+   ```powershell
+   cca --version
+   ```
+
+**Method 2: Manual Installation**
+
+1. Copy `cca.ps1` to a directory in your PATH:
+   ```powershell
+   Copy-Item cca.ps1 $env:LOCALAPPDATA\Microsoft\WindowsApps\cca.ps1
+   ```
+
+2. Manually install skills and commands to `~\.claude\`
+
+**Uninstallation**
+
 ```powershell
-git clone https://github.com/bfly123/claude_code_autoflow.git
-cd claude_code_autoflow
-# Copy cca.ps1 to your PATH or run directly
-Copy-Item cca.ps1 $env:LOCALAPPDATA\Microsoft\WindowsApps\cca.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1 uninstall
 ```
 
-**Usage**:
-```powershell
-cca.ps1 <command> [options]
-# Or if in PATH:
-cca <command> [options]
-```
+**Troubleshooting**
+
+- If you encounter "execution policy" errors, run:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+
+- If `cca` command is not found after installation, restart your terminal or manually refresh PATH:
+  ```powershell
+  $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
+  ```
 
 ## 📖 Usage
 
