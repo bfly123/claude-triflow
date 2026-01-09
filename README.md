@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Automated_Collaboration-CF1322?style=for-the-badge" alt="Automated Collaboration">
 </p>
 
-![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -129,6 +129,8 @@ cca delete ~/myproject # Remove AutoFlow config from specific path
 cca list               # Show all configured projects
 ```
 
+Note: AutoFlow skills/commands are installed per-project under `<repo>/.claude/` by `cca add`.
+
 #### Maintenance
 ```bash
 cca update             # Update cca and refresh configured projects
@@ -204,9 +206,8 @@ Role configuration controls which model/tool is used for each workflow role.
 
 ### Configuration Files
 - Project: `<repo>/.autoflow/roles.json`
-- System: `~/.autoflow/roles.json`
 
-Priority: project > system > defaults.
+Config is project-local only (no inheritance from parent directories).
 
 ### Roles and Allowed Values
 Allowed values are defined in `_meta.allowedValues` (see `claude_source/templates/roles.json`):
@@ -238,6 +239,18 @@ Allowed values are defined in `_meta.allowedValues` (see `claude_source/template
 
 <details>
 <summary>📜 Version History</summary>
+
+### v1.8.0
+- Architecture refactor: install.sh only installs cca command (no global ~/.claude/ changes)
+- Config is now project-local only (no parent directory inheritance)
+- cca update: auto-detect and migrate legacy global config to project-local
+- cca remove: interactive cleanup with confirmation
+- cca-roles-hook: removed parent directory traversal for config lookup
+
+### v1.7.1
+- Make AutoFlow skills/commands project-local (`<repo>/.claude/`) via `cca add`
+- Refactor `install.sh`/`cca update`: no global `~/.claude` skills install
+- Refactor `cca delete`: interactive cleanup of project `.claude` + hooks + policy block
 
 ### v1.7.0
 - Change default searcher role from claude to codex

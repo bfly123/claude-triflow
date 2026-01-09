@@ -5,7 +5,7 @@
 set -euo pipefail
 shopt -s nullglob
 
-VERSION="1.7.0"
+VERSION="1.8.0"
 GIT_COMMIT=""
 GIT_DATE=""
 
@@ -474,6 +474,63 @@ remove_global_skills() {
     fi
 }
 
+detect_legacy_global() {
+    local target="$HOME/.claude"
+    local skills_dir="$target/skills"
+
+    for skill in "${AUTOFLOW_SKILLS[@]}"; do
+        if [[ -d "$skills_dir/$skill" ]]; then
+            return 0
+        fi
+    done
+
+    local roles_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/cca/roles.json"
+    if [[ -f "$roles_cfg" ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+cleanup_legacy_global() {
+    local target="$HOME/.claude"
+    local skills_dir="$target/skills"
+    local commands_dir="$target/commands"
+
+    # Skills
+    for skill in "${AUTOFLOW_SKILLS[@]}"; do
+        rm -rf "$skills_dir/$skill" 2>/dev/null || true
+    done
+
+    # Commands: only those listed in .cca-owned
+    local owned="$commands_dir/.cca-owned"
+    if [[ -f "$owned" ]]; then
+        while IFS= read -r name; do
+            [[ -z "${name//[[:space:]]/}" ]] && continue
+            rm -f "$commands_dir/$name" 2>/dev/null || true
+        done < "$owned"
+        rm -f "$owned" 2>/dev/null || true
+    fi
+
+    # Roles config: backup and remove (legacy system config)
+    local roles_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/cca/roles.json"
+    if [[ -f "$roles_cfg" ]]; then
+        local backup_dir
+        backup_dir="$(dirname "$roles_cfg")/backup"
+        mkdir -p "$backup_dir" 2>/dev/null || true
+        local ts
+        ts="$(date +%Y%m%d%H%M%S 2>/dev/null || echo now)"
+        if mv -f "$roles_cfg" "$backup_dir/roles.json.$ts" 2>/dev/null; then
+            log_info "Backed up legacy system roles: $backup_dir/roles.json.$ts"
+        else
+            rm -f "$roles_cfg" 2>/dev/null || true
+            log_info "Removed legacy system roles: $roles_cfg"
+        fi
+    fi
+
+    log_info "Cleaned legacy global AutoFlow config (~/.claude, ~/.config/cca)"
+}
+
 ensure_system_roles_config() {
     local roles_cfg="$CCA_HOME/roles.json"
     if [[ -f "$roles_cfg" ]]; then
@@ -587,6 +644,165 @@ ensure_project_skills() {
     done < <(find "$claude_dir" -type f \( -name '*.md' -o -name '*.json' -o -name '*.sh' -o -name '*.py' \) -print 2>/dev/null || true)
 
     log_info "Installed project skills/commands: $claude_dir"
+}
+
+remove_project_skills() {
+    local project_root="$1"
+    local claude_dir="$project_root/.claude"
+    local skills_dir="$claude_dir/skills"
+    local commands_dir="$claude_dir/commands"
+
+    if [[ ! -d "$claude_dir" ]]; then
+        return 0
+    fi
+
+    # Skills: remove only CCA-managed skill folders.
+    for skill in "${AUTOFLOW_SKILLS[@]}"; do
+        rm -rf "$skills_dir/$skill" 2>/dev/null || true
+    done
+
+    # Commands: remove only CCA-managed command wrappers.
+    local owned="$commands_dir/.cca-owned"
+    if [[ -f "$owned" ]]; then
+        while IFS= read -r name; do
+            [[ -z "${name//[[:space:]]/}" ]] && continue
+            rm -f "$commands_dir/$name" 2>/dev/null || true
+        done < "$owned"
+        rm -f "$owned" 2>/dev/null || true
+    else
+        for f in "$commands_dir"/*.md; do
+            [[ -f "$f" ]] || continue
+            if grep -qF '.claude/skills/' "$f" 2>/dev/null; then
+                if grep -Eq '\.claude/skills/(tr|tp|dual-design|file-op|ask-codex|ask-gemini|roles|review|mode-switch|docs)/' "$f" 2>/dev/null; then
+                    rm -f "$f" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+
+    log_info "Removed project skills/commands (cca-managed): $claude_dir"
+}
+
+remove_project_hook() {
+    local project_root="$1"
+    local settings="$project_root/.claude/settings.json"
+
+    if [[ ! -f "$settings" ]]; then
+        return 0
+    fi
+
+    python3 - "$settings" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    sys.exit(2)
+
+if not isinstance(data, dict):
+    sys.exit(2)
+
+hooks = data.get("hooks")
+if not isinstance(hooks, dict):
+    sys.exit(0)
+
+pre = hooks.get("PreToolUse")
+if not isinstance(pre, list):
+    sys.exit(0)
+
+changed = False
+new_pre = []
+for e in pre:
+    if isinstance(e, dict):
+        if isinstance(e.get("commands"), list):
+            old_cmds = e.get("commands")
+            new_cmds = [c for c in old_cmds if not (isinstance(c, str) and c == "cca-roles-hook")]
+            if new_cmds != old_cmds:
+                changed = True
+            if new_cmds:
+                e["commands"] = new_cmds
+                new_pre.append(e)
+            else:
+                changed = True
+            continue
+
+        hs = e.get("hooks")
+        if isinstance(hs, list):
+            old_hs = hs
+            new_hs = []
+            for h in old_hs:
+                if isinstance(h, dict) and h.get("type") == "command" and h.get("command") == "cca-roles-hook":
+                    changed = True
+                    continue
+                new_hs.append(h)
+            if new_hs:
+                e["hooks"] = new_hs
+                new_pre.append(e)
+            else:
+                changed = True
+            continue
+
+    new_pre.append(e)
+
+if new_pre != pre:
+    hooks["PreToolUse"] = new_pre
+
+if isinstance(hooks.get("PreToolUse"), list) and len(hooks["PreToolUse"]) == 0:
+    hooks.pop("PreToolUse", None)
+    changed = True
+
+if changed:
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+    local code=$?
+    if [[ $code -eq 2 ]]; then
+        log_warn "Invalid JSON (skipping): $settings"
+        return 0
+    fi
+    if [[ $code -ne 0 ]]; then
+        log_warn "Failed to update .claude/settings.json: $settings"
+        return 0
+    fi
+
+    log_info "Removed project PreToolUse hook entry: $settings"
+}
+
+remove_claude_md_policy() {
+    local project_root="$1"
+    local file="$project_root/CLAUDE.md"
+
+    if [[ ! -f "$file" ]]; then
+        return 0
+    fi
+
+    python3 - "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8", errors="replace")
+pattern = re.compile(r"\n?<!-- CCA_WORKFLOW_POLICY -->.*?<!-- /CCA_WORKFLOW_POLICY -->\n?", re.S)
+updated, n = pattern.subn("\n", text, count=1)
+if n == 0:
+    sys.exit(0)
+updated = re.sub(r"\n{3,}", "\n\n", updated)
+if not updated.endswith("\n"):
+    updated += "\n"
+path.write_text(updated, encoding="utf-8")
+PY
+
+    local code=$?
+    if [[ $code -ne 0 ]]; then
+        log_warn "Failed to update CLAUDE.md: $file"
+        return 0
+    fi
+
+    log_info "Removed CCA workflow policy block: $file"
 }
 
 ensure_hook_installed() {
@@ -1434,11 +1650,26 @@ cmd_delete() {
         exit 1
     fi
 
+    local reply=""
+    _cca_confirm() {
+        local prompt="$1"
+        reply=""
+        printf "%s" "$prompt" >&2
+        if [[ -r /dev/tty ]]; then
+            read -r reply < /dev/tty || true
+        else
+            read -r reply || true
+        fi
+        case "$(echo "${reply:-}" | tr '[:upper:]' '[:lower:]')" in
+            y|yes) return 0 ;;
+            *) return 1 ;;
+        esac
+    }
+
     case "$target" in
         ".")
             target="$(pwd)"
-            log_blue "Removing config from current project: $target"
-            do_remove "$target"
+            log_blue "Preparing to remove AutoFlow from current project: $target"
             ;;
         *)
             if [[ "$target" != /* ]]; then
@@ -1448,10 +1679,42 @@ cmd_delete() {
                 log_error "Directory not found: $target"
                 exit 1
             }
-            log_blue "Removing config from: $target"
-            do_remove "$target"
+            log_blue "Preparing to remove AutoFlow from: $target"
             ;;
     esac
+
+    echo ""
+    echo "This will remove (cca-managed only):"
+    echo "  - $target/.claude/skills/<autoflow skills>"
+    echo "  - $target/.claude/commands/<cca-owned commands>"
+    echo "  - PreToolUse cca-roles-hook entry from $target/.claude/settings.json"
+    echo "  - CCA_WORKFLOW_POLICY block from $target/CLAUDE.md"
+    echo "  - Installation record from: $INSTALLATIONS_FILE"
+    echo "  - Codex project config from: $HOME/.codex/config.toml"
+
+    echo ""
+    if ! _cca_confirm "Proceed? [y/N] "; then
+        log_warn "Cancelled."
+        return 0
+    fi
+
+    remove_project_skills "$target" || true
+    remove_project_hook "$target" || true
+    remove_claude_md_policy "$target" || true
+
+    if [[ -d "$target/.autoflow" ]]; then
+        echo ""
+        if _cca_confirm "Delete $target/.autoflow/ ? [y/N] "; then
+            rm -rf "$target/.autoflow" 2>/dev/null || true
+            log_info "Removed: $target/.autoflow/"
+        else
+            log_info "Kept: $target/.autoflow/"
+        fi
+    fi
+
+    remove_codex_config "$target" || true
+    remove_installation "$target"
+    log_info "Removed AutoFlow config: $target"
 }
 
 # Command: update
@@ -1612,10 +1875,21 @@ cmd_update() {
         fi
     fi
 
-    # Cleanup legacy global install artifacts (skills/commands + system roles).
-    remove_global_skills || true
-    remove_system_roles_config || true
-    log_warn "Cleaned legacy system AutoFlow config. In your repo: run 'cca add .', edit '.autoflow/roles.json' (if needed), then run 'cca refresh'."
+    if detect_legacy_global; then
+        echo ""
+        log_warn "Found legacy global config."
+        local ans="y"
+        if [[ -t 0 ]]; then
+            read -r -p "Found legacy global config. Migrate to project-local? [Y/n] " ans || ans="y"
+            echo ""
+        else
+            ans="y"
+        fi
+        ans="$(echo "${ans:-}" | tr '[:upper:]' '[:lower:]')"
+        if [[ -z "$ans" || "$ans" == "y" || "$ans" == "yes" ]]; then
+            cleanup_legacy_global || true
+        fi
+    fi
 
     local -a _install_lines=()
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -1631,6 +1905,7 @@ cmd_update() {
         if [[ -d "$path" ]]; then
             log_blue "Refreshing project config: $path"
             do_install "$path" "${type:-project}" "${date:-}"
+            ensure_project_skills "$path" "$source_root" || true
             _valid_projects+=("$path")
             ((count+=1))
         else
