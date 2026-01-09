@@ -284,6 +284,7 @@ cmd_install() {
   install_bin_links
   remove_global_skills
   remove_system_roles_config
+  log_warn "Cleaned legacy system AutoFlow config. In your repo: run 'cca add .', edit '.autoflow/roles.json' (if needed), then run 'cca refresh'."
   ensure_path_configured
   log_info "Installation complete"
 }

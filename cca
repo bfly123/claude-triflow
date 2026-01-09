@@ -1615,6 +1615,7 @@ cmd_update() {
     # Cleanup legacy global install artifacts (skills/commands + system roles).
     remove_global_skills || true
     remove_system_roles_config || true
+    log_warn "Cleaned legacy system AutoFlow config. In your repo: run 'cca add .', edit '.autoflow/roles.json' (if needed), then run 'cca refresh'."
 
     local -a _install_lines=()
     while IFS= read -r line || [[ -n "$line" ]]; do
