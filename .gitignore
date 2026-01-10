@@ -35,6 +35,9 @@ desktop.ini
 credentials.json
 config.local.*
 
+# Project-local docs (do not commit local changes)
+CLAUDE.md
+
 # Build
 dist/
 build/
