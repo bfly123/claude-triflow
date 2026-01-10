@@ -4,5 +4,7 @@
   "executor": "codex",
   "reviewer": "codex",
   "documenter": "gemini",
-  "designer": ["claude", "codex"]
+  "designer": ["claude", "codex"],
+  "searcher": "codex",
+  "git_manager": "codex"
 }

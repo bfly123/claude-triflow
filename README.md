@@ -214,7 +214,7 @@ Role configuration controls which model/tool is used for each workflow role.
 Config is project-local only (no inheritance from parent directories).
 
 ### Roles and Allowed Values
-Allowed values are defined in `_meta.allowedValues` (see `claude_source/templates/roles.json`):
+Roles are configured in `<repo>/.autoflow/roles.json`:
 - `executor`: `codex`, `opencode`, `codex+opencode`
 - `reviewer`: `codex`, `gemini`
 - `documenter`: `codex`, `gemini`
