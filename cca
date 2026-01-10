@@ -455,6 +455,23 @@ cleanup_legacy_global() {
     log_info "Cleaned legacy global AutoFlow config (~/.claude, ~/.config/cca)"
 }
 
+find_all_hook_projects() {
+    # Scan $HOME for projects that still have cca-roles-hook configured in .claude/settings.json.
+    # Prints one absolute project path per line.
+    find "$HOME" \
+        -path "$HOME/.cache" -prune -o \
+        -path "$HOME/.config" -prune -o \
+        -path "$HOME/.claude" -prune -o \
+        -type f -path "*/.claude/settings.json" -print0 2>/dev/null | \
+        while IFS= read -r -d '' settings; do
+            if grep -qF "cca-roles-hook" "$settings" 2>/dev/null; then
+                local root=""
+                root="$(cd "$(dirname "$settings")/.." 2>/dev/null && pwd)" || continue
+                printf "%s\n" "$root"
+            fi
+        done
+}
+
 ensure_project_roles_config() {
     local project_root="$1"
     local target_dir="$project_root/.autoflow"
@@ -1541,13 +1558,14 @@ cmd_delete() {
     local reply=""
     _cca_confirm() {
         local prompt="$1"
+        # Non-interactive mode: default proceed (do not block/cancel).
+        if [[ ! -t 0 ]]; then
+            return 0
+        fi
+
         reply=""
         printf "%s" "$prompt" >&2
-        if [[ -r /dev/tty ]]; then
-            read -r reply < /dev/tty || true
-        else
-            read -r reply || true
-        fi
+        read -r reply || true
         case "$(echo "${reply:-}" | tr '[:upper:]' '[:lower:]')" in
             y|yes) return 0 ;;
             *) return 1 ;;
@@ -1881,7 +1899,9 @@ cmd_uninstall() {
         return 0
     fi
 
-    # Clean all configured projects (best effort).
+    # Clean all configured projects + any scanned hook projects (best effort).
+    local -a _projects_raw=()
+
     local -a _install_lines=()
     while IFS= read -r line || [[ -n "$line" ]]; do
         _install_lines+=("$line")
@@ -1890,8 +1910,23 @@ cmd_uninstall() {
     for line in "${_install_lines[@]+"${_install_lines[@]}"}"; do
         [[ -z "${line//[[:space:]]/}" ]] && continue
         IFS='|' read -r path type date <<< "$line"
-        [[ -z "${path:-}" ]] && continue
+        [[ -n "${path:-}" ]] && _projects_raw+=("$path")
+    done
 
+    while IFS= read -r path || [[ -n "${path:-}" ]]; do
+        [[ -n "${path//[[:space:]]/}" ]] && _projects_raw+=("$path")
+    done < <(find_all_hook_projects 2>/dev/null || true)
+
+    local -a _projects=()
+    local tmp_list
+    tmp_list="$(mktemp "${CCA_CACHE}/cca-uninstall-projects.tmp.XXXXXX" 2>/dev/null || mktemp -t cca_uninstall_projects.XXXXXX)"
+    ( printf "%s\n" "${_projects_raw[@]+"${_projects_raw[@]}"}" | sed '/^[[:space:]]*$/d' | sort -u ) > "$tmp_list" 2>/dev/null || true
+    while IFS= read -r path || [[ -n "${path:-}" ]]; do
+        [[ -n "${path//[[:space:]]/}" ]] && _projects+=("$path")
+    done < "$tmp_list" 2>/dev/null || true
+    rm -f "$tmp_list" 2>/dev/null || true
+
+    for path in "${_projects[@]+"${_projects[@]}"}"; do
         log_blue "Cleaning project: $path"
         remove_project_skills "$path" || true
         remove_project_hook "$path" || true
